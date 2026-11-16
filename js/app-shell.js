@@ -48,7 +48,9 @@ $('expPptx').onclick = () => { closeMenus(); exportPptx(); };
 $('btnImport').onclick = () => $('fileIn').click();
 $('fileIn').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return; const rd = new FileReader();
-  rd.onload = () => { let d = null; try { d = normalize(JSON.parse(rd.result)); } catch(err) {} if (!d) return toast(t('toast_bad_file')); snapshot(); doc = d; afterSwap(); toast(t('toast_loaded')); };
+  rd.onload = () => { let raw = null, d = null; try { raw = JSON.parse(rd.result); } catch(err) {}
+    if (isBoardJson(raw)) return openTracker(raw);   // AI 트래커의 board.json → 자리·등번호 맞추는 창 (tracker.js)
+    try { d = normalize(raw); } catch(err) {} if (!d) return toast(t('toast_bad_file')); snapshot(); doc = d; afterSwap(); toast(t('toast_loaded')); };
   rd.readAsText(f); e.target.value = '';
 });
 $('recCancel').onclick = () => { if (recording) recording.cancelled = true; };

@@ -15,6 +15,7 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); return;
   }
   const tg = e.target; if (tg && (tg.tagName === 'INPUT' || tg.tagName === 'TEXTAREA' || tg.tagName === 'SELECT' || tg.isContentEditable)) return;
+  if (!$('trk').hidden) { if (e.code === 'Escape') { closeTracker(); e.preventDefault(); } return; }   // 트래커 불러오기 창이 열려 있으면 보드 단축키 막기
   if (!$('help').hidden) { if (e.code === 'Escape' || (e.code === 'Slash' && e.shiftKey)) { toggleHelp(); e.preventDefault(); } return; }
   if (recording) return;
   const ctrl = e.ctrlKey || e.metaKey, c = e.code;

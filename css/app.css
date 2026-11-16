@@ -176,3 +176,21 @@ kbd{font:500 11px var(--f-mono);padding:1px 5px;border:1px solid var(--line);bor
   .side{max-height:none}
 }
 @media (prefers-reduced-motion: reduce){.summon .tok .caret,.rec .dotred{animation:none}}
+
+/* 트래커(board.json) 불러오기 창 */
+.modal .card.wide{max-width:1120px;max-height:92vh}
+.trk-body{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+.trk-opts{display:flex;gap:14px 22px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.trk-pv canvas{display:block;width:100%;border-radius:10px;background:#244c33}
+.trk-cols{display:flex;flex-direction:column;gap:14px;max-height:56vh;overflow:auto;padding-right:4px}
+.trk-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.trk-sw,.trk-dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid var(--line)}
+.trk-sw{border-radius:3px}
+.trk-table{width:100%;border-collapse:collapse}
+.trk-table th{font-size:12px;color:var(--muted);text-align:left;padding:4px 6px;font-weight:600}
+.trk-table td{padding:3px 6px;border-top:1px solid var(--line)}
+.trk-table td.n{color:var(--muted);font-size:12px;white-space:nowrap}
+.trk-table select{width:100%;border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:4px 6px}
+.trk-table tr.bad td{background:color-mix(in srgb, var(--warn) 14%, transparent)}
+.trk-table tr.bad select{border-color:var(--warn)}
+@media (max-width:760px){.trk-body{grid-template-columns:1fr}.trk-cols{max-height:none}}

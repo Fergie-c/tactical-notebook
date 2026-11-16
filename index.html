@@ -19,7 +19,7 @@
   </div>
   <div class="doc-title" id="docTitle"></div>
   <div class="top-actions">
-    <button class="btn" id="btnImport" data-i18n="import">불러오기</button>
+    <button class="btn" id="btnImport" data-i18n="import" data-i18n-title="import_tip">불러오기</button>
     <div class="menu-wrap">
       <button class="btn primary" id="btnExport" aria-haspopup="true" aria-expanded="false"><span data-i18n="export">내보내기</span> ▾</button>
       <div class="menu" id="exportMenu" hidden>
@@ -212,6 +212,36 @@
   </div>
 </div>
 
+<div class="modal" id="trk" hidden>
+  <div class="card wide" role="dialog" aria-modal="true" aria-labelledby="trkTitle">
+    <h2 id="trkTitle" data-i18n="trk_title">트래커 결과 불러오기</h2>
+    <p class="note" style="margin:0 0 10px" id="trkInfo"></p>
+    <div class="trk-opts">
+      <div class="field"><label data-i18n="trk_map">트래커 A팀은</label>
+        <div class="seg" role="group" id="trkMap"><button data-team="home" data-i18n="home">홈</button><button data-team="away" data-i18n="away">원정</button></div></div>
+      <div class="field"><label data-i18n="trk_mode">장면 넣는 방식</label>
+        <div class="seg" role="group" id="trkMode"><button data-mode="append" data-i18n="trk_append">지금 장면 뒤에 추가</button><button data-mode="replace" data-i18n="trk_replace">장면 전체 교체</button></div></div>
+      <label class="check"><input type="checkbox" id="trkRotate"> <span data-i18n="trk_rotate">180° 돌리기 (공격 방향이 반대일 때)</span></label>
+    </div>
+    <p class="note" style="margin:8px 0" data-i18n="trk_help">트래커는 선수가 누구인지 모르고 자리 번호(A1, A2…)만 붙여요. 미리보기와 tracked.mp4를 대조해서 자리마다 등번호를 골라 주세요. '빼기'로 둔 자리는 보드에 올리지 않아요.</p>
+    <div class="trk-body">
+    <div class="trk-pv">
+      <canvas id="trkPv"></canvas>
+      <div class="row" style="align-items:center;justify-content:center;margin-top:6px">
+        <button class="mini" id="trkPrev">◀</button><span class="mono" id="trkPvInd"></span><button class="mini" id="trkNext">▶</button>
+      </div>
+    </div>
+    <div class="trk-cols" id="trkCols"></div>
+    </div>
+    <p class="note" id="trkWarn" hidden style="color:var(--warn);margin:8px 0 0" data-i18n="trk_dup">같은 팀에서 한 등번호를 두 자리에 줄 수 없어요. 빨간 줄을 고쳐 주세요.</p>
+    <div class="row" style="justify-content:flex-end;margin-top:14px">
+      <button class="btn" id="trkAutoBtn" data-i18n="trk_auto">자동 추천 다시</button>
+      <button class="btn" id="trkCancel" data-i18n="cancel">취소</button>
+      <button class="btn primary" id="trkOk" data-i18n="trk_ok">장면으로 가져오기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 스크립트는 이 순서대로 로드해야 함: 뒤 파일이 앞 파일의 상수·함수를 씀. type="module"은 file://에서 막히므로 쓰지 말 것 -->
 <script src="js/i18n.js"></script>
 <script src="js/constants.js"></script>
@@ -226,6 +256,7 @@
 <script src="js/docs.js"></script>
 <script src="js/ui-panels.js"></script>
 <script src="js/csv.js"></script>
+<script src="js/tracker.js"></script>
 <script src="js/kit.js"></script>
 <script src="js/app-shell.js"></script>
 <script src="js/keyboard.js"></script>

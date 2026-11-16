@@ -82,3 +82,19 @@ const HELP_ROWS = [
 let lang = 'ko';
 try { lang = localStorage.getItem('tactical-notebook.lang') || 'ko'; } catch(e) {}
 const t = (k, vars) => { let s = (I18N[lang] && I18N[lang][k]) ?? I18N.ko[k] ?? k; if (vars) for (const v in vars) s = s.replace('{'+v+'}', vars[v]); return s; };
+
+/* ---------- 2026-11-16 추가분: 트래커 불러오기, 경기 CSV, 3D 보기 ---------- */
+Object.assign(I18N.ko, {
+  import_tip:'분석 파일(.json) 또는 AI 트래커의 board.json',
+  trk_title:'트래커 결과 불러오기', trk_info:'장면 {n}개 · A팀 자리 {a}개 · B팀 자리 {b}개', trk_map:'트래커 A팀은', trk_mode:'장면 넣는 방식', trk_append:'지금 장면 뒤에 추가', trk_replace:'장면 전체 교체',
+  trk_rotate:'180° 돌리기 (공격 방향이 반대일 때)', trk_help:"트래커는 선수가 누구인지 모르고 자리 번호(A1, A2…)만 붙여요. 미리보기와 tracked.mp4를 대조해서 자리마다 등번호를 골라 주세요. '빼기'로 둔 자리는 보드에 올리지 않아요.",
+  trk_dup:'같은 팀에서 한 등번호를 두 자리에 줄 수 없어요. 빨간 줄을 고쳐 주세요.', trk_auto:'자동 추천 다시', trk_ok:'장면으로 가져오기', trk_skip:'빼기', trk_team:'트래커 {t}팀', trk_slot:'자리', trk_seen:'등장', trk_none:'이 팀으로 잡힌 선수가 없어요', trk_color:'트래커가 본 유니폼 색',
+  trk_empty:'board.json에 선수 위치가 없어요. export_board.py 결과가 맞는지 확인해 주세요.', trk_nothing:'가져올 선수가 없어요. 자리에 등번호를 골라 주세요.', trk_done:'트래커 장면 {n}개를 가져왔어요 · Ctrl+Z로 되돌리기', trk_scene_title:'트래커 {label}',
+});
+Object.assign(I18N.en, {
+  import_tip:'Analysis file (.json) or board.json from the AI tracker',
+  trk_title:'Import tracker result', trk_info:'{n} scenes · {a} team-A slots · {b} team-B slots', trk_map:'Tracker team A is', trk_mode:'How to add scenes', trk_append:'Insert after current scene', trk_replace:'Replace all scenes',
+  trk_rotate:'Rotate 180° (attack direction is reversed)', trk_help:"The tracker does not know who each player is; it only labels slots (A1, A2…). Compare the preview with tracked.mp4 and pick a shirt number for each slot. Slots left on 'Skip' are not placed.",
+  trk_dup:'One shirt number cannot be given to two slots of the same team. Fix the red rows.', trk_auto:'Suggest again', trk_ok:'Import as scenes', trk_skip:'Skip', trk_team:'Tracker team {t}', trk_slot:'Slot', trk_seen:'Seen', trk_none:'No players detected for this team', trk_color:'Shirt colour seen by the tracker',
+  trk_empty:'No player positions in this board.json. Check that it came from export_board.py.', trk_nothing:'Nothing to import. Pick shirt numbers for the slots.', trk_done:'Imported {n} tracker scenes · Ctrl+Z to undo', trk_scene_title:'Tracker {label}',
+});
