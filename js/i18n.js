@@ -85,6 +85,8 @@ const t = (k, vars) => { let s = (I18N[lang] && I18N[lang][k]) ?? I18N.ko[k] ?? 
 
 /* ---------- 2026-11-16 추가분: 트래커 불러오기, 경기 CSV, 3D 보기 ---------- */
 Object.assign(I18N.ko, {
+  csv_match_template:'경기 양식 받기 (두 팀)', csv_match_done:'경기 명단 불러옴 · {h} {hn}명 / {a} {an}명', csv_teams3:"'팀' 칸에 팀이 {n}개 있어요. 한 파일에는 두 팀만 넣어 주세요.",
+  csv_note:"한 줄에 한 명: 등번호,포지션,이름 (세부포지션,구분,영문명 열이 있으면 같이 읽어요) · 위에서 11명이 선발, 나머지는 후보('구분'에 교체라고 쓰면 자동으로 아래로) · 지금 선택한 팀 명단을 통째로 바꿔요. 맨 앞에 '팀' 열(홈/원정 또는 팀 이름)이 있으면 두 팀을 한 번에 바꿔요. Ctrl+Z로 되돌리기 · 파일을 이 칸에 끌어다 놓아도 돼요.",
   import_tip:'분석 파일(.json) 또는 AI 트래커의 board.json',
   trk_title:'트래커 결과 불러오기', trk_info:'장면 {n}개 · A팀 자리 {a}개 · B팀 자리 {b}개', trk_map:'트래커 A팀은', trk_mode:'장면 넣는 방식', trk_append:'지금 장면 뒤에 추가', trk_replace:'장면 전체 교체',
   trk_rotate:'180° 돌리기 (공격 방향이 반대일 때)', trk_help:"트래커는 선수가 누구인지 모르고 자리 번호(A1, A2…)만 붙여요. 미리보기와 tracked.mp4를 대조해서 자리마다 등번호를 골라 주세요. '빼기'로 둔 자리는 보드에 올리지 않아요.",
@@ -92,6 +94,8 @@ Object.assign(I18N.ko, {
   trk_empty:'board.json에 선수 위치가 없어요. export_board.py 결과가 맞는지 확인해 주세요.', trk_nothing:'가져올 선수가 없어요. 자리에 등번호를 골라 주세요.', trk_done:'트래커 장면 {n}개를 가져왔어요 · Ctrl+Z로 되돌리기', trk_scene_title:'트래커 {label}',
 });
 Object.assign(I18N.en, {
+  csv_match_template:'Match template (both teams)', csv_match_done:'Match squads loaded · {h} {hn} / {a} {an}', csv_teams3:"The 'team' column has {n} teams. Put only two teams in one file.",
+  csv_note:"One player per line: number,position,name (role, status and english columns are read if present) · the top 11 are starters, the rest are the bench (rows marked 'sub' go below automatically) · replaces the selected team's squad. With a leading 'team' column (home/away or team names) both squads are replaced at once. Ctrl+Z to undo · you can also drop the file here.",
   import_tip:'Analysis file (.json) or board.json from the AI tracker',
   trk_title:'Import tracker result', trk_info:'{n} scenes · {a} team-A slots · {b} team-B slots', trk_map:'Tracker team A is', trk_mode:'How to add scenes', trk_append:'Insert after current scene', trk_replace:'Replace all scenes',
   trk_rotate:'Rotate 180° (attack direction is reversed)', trk_help:"The tracker does not know who each player is; it only labels slots (A1, A2…). Compare the preview with tracked.mp4 and pick a shirt number for each slot. Slots left on 'Skip' are not placed.",
