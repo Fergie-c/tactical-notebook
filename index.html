@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JS Tactical Board</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231d6a4a'/%3E%3Crect x='5' y='8' width='22' height='16' rx='1.5' fill='none' stroke='%23fff' stroke-width='1.8'/%3E%3Cline x1='16' y1='8' x2='16' y2='24' stroke='%23fff' stroke-width='1.8'/%3E%3Ccircle cx='16' cy='16' r='3' fill='none' stroke='%23fff' stroke-width='1.8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <svg width="30" height="22" viewBox="0 0 30 22" aria-hidden="true"><rect x="1" y="1" width="28" height="20" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="15" y1="1" x2="15" y2="21" stroke="currentColor" stroke-width="1.6"/><circle cx="15" cy="11" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="1" y="6" width="5" height="10" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="24" y="6" width="5" height="10" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+    <span data-i18n="brand">JS Tactical Board</span>
+  </div>
+  <div class="doc-title" id="docTitle"></div>
+  <div class="top-actions">
+    <button class="btn" id="btnImport" data-i18n="import">불러오기</button>
+    <div class="menu-wrap">
+      <button class="btn primary" id="btnExport" aria-haspopup="true" aria-expanded="false"><span data-i18n="export">내보내기</span> ▾</button>
+      <div class="menu" id="exportMenu" hidden>
+        <button id="expPng" data-i18n="exp_png">현재 장면 PNG 카드</button>
+        <button id="expAll" data-i18n="exp_all">모든 장면 PNG 카드</button>
+        <button id="expVideo" data-i18n="exp_video">애니메이션 영상 저장</button>
+        <button id="expPdf" data-i18n="exp_pdf">PDF 문서 (표지 + 모든 장면)</button>
+        <button id="expPptx" data-i18n="exp_pptx">PowerPoint (.pptx, 글자 수정 가능)</button>
+        <button id="expJson" data-i18n="exp_json">분석 파일 저장 (.json)</button>
+      </div>
+    </div>
+    <div class="seg" role="group" aria-label="Language">
+      <button id="langKo" aria-pressed="true">KO</button>
+      <button id="langEn" aria-pressed="false">EN</button>
+    </div>
+    <button class="btn" id="btnHelp" aria-label="Shortcuts"><span data-i18n="help">단축키</span> <kbd>?</kbd></button>
+  </div>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+</header>
+
+<main class="app">
+  <nav class="rail" aria-label="Tools" id="rail"></nav>
+
+  <section class="stage">
+    <div class="board-wrap" id="boardWrap">
+      <canvas id="board"></canvas>
+      <div class="summon" id="summon" hidden>
+        <div class="tok" id="summonTok"><span id="summonNum"></span><span class="caret"></span></div>
+        <div>
+          <div class="lab" id="summonTeam">HOME</div>
+          <div class="who" id="summonWho"></div>
+          <div class="hint" data-i18n="summon_hint">번호 입력 → Enter · Esc 취소</div>
+        </div>
+      </div>
+      <div class="toast" id="toast" hidden></div>
+      <div class="rec" id="rec" hidden>
+        <div class="box">
+          <div><span class="dotred"></span> <strong id="recTitle" data-i18n="rec">영상 녹화 중</strong> <span id="recProg"></span></div>
+          <div class="note" id="recHint" style="color:#cfd8d2" data-i18n="rec_hint">녹화가 끝날 때까지 이 탭을 띄워두세요</div>
+          <button class="btn" id="recCancel" data-i18n="cancel">취소</button>
+        </div>
+      </div>
+    </div>
+    <div class="playbar">
+      <button class="btn" id="btnFirst" data-i18n-title="first" title="처음 장면">⏮</button>
+      <button class="btn primary" id="btnPlay"><span id="playIcon">▶</span> <span id="playLabel" data-i18n="play">재생</span></button>
+      <select class="btn" id="speed" aria-label="Speed">
+        <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option>
+      </select>
+      <span class="ind" id="sceneInd">1 / 1</span>
+      <div class="seg" role="group" id="halfSeg" data-i18n-title="half_switch"><button data-half="1" data-i18n="half_1">전반</button><button data-half="2" data-i18n="half_2">후반</button></div>
+      <div class="row">
+        <button class="mini" id="scLeft" data-i18n-title="move_l" title="앞으로">◀</button>
+        <button class="mini" id="scRight" data-i18n-title="move_r" title="뒤로">▶</button>
+        <button class="mini" id="scDup" data-i18n="dup">복제</button>
+        <button class="mini" id="scDel" data-i18n="del" style="color:var(--warn)">삭제</button>
+      </div>
+      <span class="hint"><kbd>Space</kbd> <span data-i18n="play">재생</span> · <kbd>[</kbd> <kbd>]</kbd> <span data-i18n="nav_scene">장면 이동</span> · <kbd>N</kbd> <span data-i18n="new_scene">새 장면</span></span>
+    </div>
+    <div class="strip" id="strip"></div>
+  </section>
+
+  <aside class="side">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabMemo" aria-selected="true" data-i18n="tab_memo">메모</button>
+      <button role="tab" id="tabRoster" aria-selected="false" data-i18n="tab_roster">명단</button>
+      <button role="tab" id="tabKit" aria-selected="false" data-i18n="tab_kit">유니폼</button>
+      <button role="tab" id="tabMatch" aria-selected="false" data-i18n="tab_match">경기 정보</button>
+    </div>
+
+    <div class="panel" id="pMemo">
+      <div class="scene-head">
+        <div><div class="eyebrow" data-i18n="scene">장면</div><div class="big" id="memoNum">1 <small>/ 1</small></div></div>
+      </div>
+      <div class="field"><label for="fTitle" data-i18n="f_title">장면 제목</label><input id="fTitle" data-i18n-ph="ph_title"></div>
+      <div class="two mono">
+        <div class="field"><label for="fTime" data-i18n="f_time">경기 시간</label><input id="fTime" data-i18n-ph="ph_time"></div>
+        <div class="field"><label for="fClip" data-i18n="f_clip">영상 위치</label><input id="fClip" data-i18n-ph="ph_clip"></div>
+      </div>
+      <div class="field"><label for="fObs" data-i18n="f_obs">관찰</label><textarea id="fObs" rows="5" data-i18n-ph="ph_obs"></textarea></div>
+      <div class="field"><label for="fKey" data-i18n="f_key">핵심 포인트</label><textarea id="fKey" rows="3" data-i18n-ph="ph_key"></textarea></div>
+    </div>
+
+    <div class="panel" id="pRoster" hidden>
+      <div class="seg" role="group" style="align-self:flex-start">
+        <button id="rtHome" aria-pressed="true" data-i18n="home">홈</button>
+        <button id="rtAway" aria-pressed="false" data-i18n="away">원정</button>
+      </div>
+      <div class="field"><label for="tName" data-i18n="team_name">팀 이름</label><input id="tName"></div>
+      <div class="drop" id="csvDrop">
+        <div class="row" style="align-items:center">
+          <button class="mini" id="csvLoad" style="font-weight:600">⇪ <span data-i18n="csv_load">CSV로 명단 불러오기</span></button>
+          <button class="mini" id="csvTemplate" data-i18n="csv_template">양식 받기</button>
+        </div>
+        <p class="note" style="margin:0" data-i18n="csv_note">한 줄에 한 명: 등번호,포지션,이름</p>
+      </div>
+      <input type="file" id="csvIn" accept=".csv,.txt,text/csv" hidden>
+      <div class="field">
+        <label data-i18n="formation">포메이션 적용</label>
+        <div class="row" id="formBtns"><select class="btn" id="formSel" aria-label="Formation"></select><button class="mini" id="formApply" data-i18n="apply">적용</button></div>
+      </div>
+      <div class="eyebrow" data-i18n="roster">선수 명단</div>
+      <table class="roster">
+        <thead><tr><th></th><th data-i18n="num">번호</th><th data-i18n="name">이름</th><th data-i18n="pos">포지션</th><th></th></tr></thead>
+        <tbody id="rosterBody"></tbody>
+      </table>
+      <datalist id="roleList"><option value="GK"><option value="RB"><option value="RCB"><option value="CB"><option value="LCB"><option value="LB"><option value="RWB"><option value="LWB"><option value="DM"><option value="CDM"><option value="RCM"><option value="CM"><option value="LCM"><option value="CAM"><option value="AM"><option value="RM"><option value="LM"><option value="RW"><option value="LW"><option value="SS"><option value="CF"><option value="ST"></datalist>
+      <button class="mini" id="addPlayer" style="align-self:flex-start">+ <span data-i18n="add_player">선수 추가</span></button>
+    </div>
+
+    <div class="panel" id="pKit" hidden>
+      <div class="seg" role="group" style="align-self:flex-start">
+        <button id="ktHome" aria-pressed="true" data-i18n="home">홈</button>
+        <button id="ktAway" aria-pressed="false" data-i18n="away">원정</button>
+      </div>
+      <div class="kit-top">
+        <canvas id="kitPreview" width="168" height="168"></canvas>
+        <div class="meta">
+          <strong id="kitTeamName"></strong>
+          <span class="note" id="kitDesc"></span>
+        </div>
+      </div>
+      <div class="seg" role="tablist" style="align-self:stretch;display:grid;grid-template-columns:1fr 1fr">
+        <button id="ksPattern" aria-pressed="true" data-i18n="kit_pattern">무늬</button>
+        <button id="ksColor" aria-pressed="false" data-i18n="kit_color">색상</button>
+      </div>
+      <div id="kitPatternPane" style="display:flex;flex-direction:column;gap:12px">
+        <div class="eyebrow" data-i18n="kit_uniform">유니폼 무늬</div>
+        <div class="pat-grid" id="patGrid"></div>
+        <div class="eyebrow" data-i18n="kit_flags">국기 프리셋 (무늬와 색을 한 번에)</div>
+        <div class="pat-grid" id="flagGrid"></div>
+        <p class="note" style="margin:0" data-i18n="kit_flag_note">국기 색은 흔히 쓰는 표준색 기준이라 공식 지정색과 약간 다를 수 있어요.</p>
+      </div>
+      <div id="kitColorPane" hidden style="display:flex;flex-direction:column;gap:10px">
+        <p class="note" style="margin:0" data-i18n="kit_color_note">칸을 고른 뒤 아래 색을 누르거나, 왼쪽 색상 상자를 눌러 직접 고르세요.</p>
+        <div id="slotList" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div class="eyebrow" data-i18n="kit_palette">자주 쓰는 유니폼 색</div>
+        <div class="pal" id="palette"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="pMatch" hidden>
+      <div class="field"><label for="mTitle" data-i18n="m_title">분석 제목</label><input id="mTitle"></div>
+      <div class="two">
+        <div class="field"><label for="mComp" data-i18n="m_comp">대회·리그</label><input id="mComp"></div>
+        <div class="field"><label for="mDate" data-i18n="m_date">경기 날짜</label><input id="mDate" type="date"></div>
+      </div>
+      <div class="field"><label for="mAnalyst" data-i18n="m_analyst">분석가</label><input id="mAnalyst"></div>
+      <div class="eyebrow" data-i18n="display">표시</div>
+      <label class="check"><input type="checkbox" id="optNames"> <span data-i18n="show_names">선수 이름 표시</span></label>
+      <div class="field">
+        <label for="optLabel" data-i18n="label_mode">원 안 / 이름표</label>
+        <select id="optLabel"><option value="num" data-i18n="lm_num">번호 / 이름</option><option value="pos" data-i18n="lm_pos">포지션 / 이름</option><option value="numpos" data-i18n="lm_numpos">번호 / 포지션 이름</option></select>
+      </div>
+      <div class="field">
+        <label for="optToken"><span data-i18n="token_size">선수 원 크기</span> <span id="optTokenVal" class="mono"></span></label>
+        <input id="optToken" type="range" min="60" max="160" step="5">
+      </div>
+      <div class="field" style="max-width:180px">
+        <label for="optStripes" data-i18n="stripes">잔디 줄 개수</label>
+        <input id="optStripes" type="number" step="1" min="-60" max="60" inputmode="numeric" style="font:600 18px var(--f-display)">
+      </div>
+      <div class="seg" role="group" id="patSeg" style="align-self:flex-start"><button data-pat="stripes" data-i18n="pat_stripes">줄무늬</button><button data-pat="check" data-i18n="pat_check">바둑판</button></div>
+      <p class="note" style="margin:0" data-i18n="stripes_note">18 = UEFA 규격 · 음수 = 줄 색 반전 · 0 = 줄 없음</p>
+      <div class="field">
+        <label data-i18n="pitch_view">피치 보기</label>
+        <div class="seg" role="group" id="viewSeg" style="align-self:flex-start">
+          <button data-view="full" data-i18n="v_full">전체</button>
+          <button data-view="left" data-i18n="v_left">왼쪽 절반</button>
+          <button data-view="right" data-i18n="v_right">오른쪽 절반</button>
+        </div>
+      </div>
+      <div class="eyebrow" data-i18n="data">데이터</div>
+      <p class="note" data-i18n="autosave">변경 내용은 이 브라우저에 자동 저장돼요.</p>
+      <div class="row">
+        <button class="mini" id="btnNew" style="color:var(--warn)" data-i18n="new_doc">새 분석 시작</button>
+        <button class="mini" id="btnSample" data-i18n="sample">예시 다시 불러오기</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="modal" id="help" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <h2 id="helpTitle" data-i18n="help_title">단축키</h2>
+      <button class="btn" id="helpClose">Esc</button>
+    </div>
+    <table class="keys" id="keysTable"></table>
+  </div>
+</div>
+
+<!-- 스크립트는 이 순서대로 로드해야 함: 뒤 파일이 앞 파일의 상수·함수를 씀. type="module"은 file://에서 막히므로 쓰지 말 것 -->
+<script src="js/i18n.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/document.js"></script>
+<script src="js/state.js"></script>
+<script src="js/render.js"></script>
+<script src="js/input.js"></script>
+<script src="js/commands.js"></script>
+<script src="js/playback.js"></script>
+<script src="js/mp4.js"></script>
+<script src="js/export.js"></script>
+<script src="js/docs.js"></script>
+<script src="js/ui-panels.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/kit.js"></script>
+<script src="js/app-shell.js"></script>
+<script src="js/keyboard.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# 개인 설정·테스트 결과물
+CLAUDE.local.md
+.vscode/
+tests/out/
+__pycache__/
+*.pyc
+
+# 공개 저장소에 올리면 안 되는 것: 실제 경기 명단·영상·트래커 결과
+# (samples/ 에는 가짜 데이터만 둔다)
+data/
+private/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+tracker/out/
+tracker/.venv/
+tracker/*.pt
+tracker/calib*.json
+tracker/calib_preview.jpg
