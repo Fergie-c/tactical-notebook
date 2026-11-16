@@ -26,6 +26,7 @@
         <button id="expPng" data-i18n="exp_png">현재 장면 PNG 카드</button>
         <button id="expAll" data-i18n="exp_all">모든 장면 PNG 카드</button>
         <button id="expVideo" data-i18n="exp_video">애니메이션 영상 저장</button>
+        <button id="expVideoBoard" data-i18n="exp_video_board">보드만 영상 저장 (메모 없이 꽉 찬 화면)</button>
         <button id="expPdf" data-i18n="exp_pdf">PDF 문서 (표지 + 모든 장면)</button>
         <button id="expPptx" data-i18n="exp_pptx">PowerPoint (.pptx, 글자 수정 가능)</button>
         <button id="expJson" data-i18n="exp_json">분석 파일 저장 (.json)</button>
@@ -46,6 +47,13 @@
   <section class="stage">
     <div class="board-wrap" id="boardWrap">
       <canvas id="board"></canvas>
+      <canvas id="board3d" hidden></canvas>
+      <div class="v3bar" id="v3Bar" hidden>
+        <span data-i18n="v3_bar">3D 보기 · 드래그 = 회전, 휠 = 확대</span>
+        <button class="mini" data-cam="reset" data-i18n="v3_reset">기본 각도</button>
+        <button class="mini" data-cam="top" data-i18n="v3_top">위에서</button>
+        <button class="mini" data-cam="goal" data-i18n="v3_goal">골대 뒤</button>
+      </div>
       <div class="summon" id="summon" hidden>
         <div class="tok" id="summonTok"><span id="summonNum"></span><span class="caret"></span></div>
         <div>
@@ -70,6 +78,7 @@
         <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option>
       </select>
       <span class="ind" id="sceneInd">1 / 1</span>
+      <div class="seg" role="group" id="dimSeg" data-i18n-title="v3_switch"><button data-dim="2d" aria-pressed="true">2D</button><button data-dim="3d" aria-pressed="false">3D</button></div>
       <div class="seg" role="group" id="halfSeg" data-i18n-title="half_switch"><button data-half="1" data-i18n="half_1">전반</button><button data-half="2" data-i18n="half_2">후반</button></div>
       <div class="row">
         <button class="mini" id="scLeft" data-i18n-title="move_l" title="앞으로">◀</button>
@@ -244,6 +253,7 @@
 </div>
 
 <!-- 스크립트는 이 순서대로 로드해야 함: 뒤 파일이 앞 파일의 상수·함수를 씀. type="module"은 file://에서 막히므로 쓰지 말 것 -->
+<script src="vendor/three.min.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/constants.js"></script>
 <script src="js/document.js"></script>
@@ -258,6 +268,7 @@
 <script src="js/ui-panels.js"></script>
 <script src="js/csv.js"></script>
 <script src="js/tracker.js"></script>
+<script src="js/view3d.js"></script>
 <script src="js/kit.js"></script>
 <script src="js/app-shell.js"></script>
 <script src="js/keyboard.js"></script>

@@ -294,6 +294,7 @@ function draw(frame){
   T = makeT(doc.view, { x:0, y:0, w:W, h:H }, frame ? frame.flip : isFlipped(scene()));
   const fr = frame || frameOf(scene());
   renderFrame(ctx, T, fr, { showNames:doc.showNames, sel: frame ? null : sel, selShapes: frame ? null : selShapes, measure:!frame, chain: frame ? null : chain, chainColor: color });
+  if (v3.on) v3Render(fr, T.flip);   // 3D 보기: 같은 프레임을 입체로 (view3d.js)
   if (!frame) {
     syncStyleUI();
     if (drag && drag.swap) {   // drag-to-swap hint on the teammate under the dragged player

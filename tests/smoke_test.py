@@ -7,8 +7,8 @@ Tactical Notebook 스모크 테스트 (Playwright, Python)
 [실행]  프로젝트 폴더에서
     python tests/smoke_test.py
 
-하는 일: 앱을 열어 주요 동작(선수 호출·이동, 새 장면, 그리기, 재생, PNG/JSON 내보내기, CSV 불러오기)을
-차례로 해 보고, 페이지 오류가 있으면 실패로 끝낸다. 스크린샷과 내려받은 파일은 tests/out/ 에 남는다.
+하는 일: 앱을 열어 주요 동작(선수 호출·이동, 새 장면, 그리기, 재생, PNG/JSON 내보내기, CSV 불러오기,
+경기 CSV, 트래커 board.json 불러오기, 3D 보기)을 차례로 해 보고, 페이지 오류가 있으면 실패로 끝낸다. 스크린샷과 내려받은 파일은 tests/out/ 에 남는다.
 """
 import asyncio
 import pathlib
@@ -19,6 +19,8 @@ from playwright.async_api import async_playwright
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 APP = (ROOT / "index.html").as_uri()
 CSV = ROOT / "samples" / "squad_sample.csv"
+MATCH_CSV = ROOT / "samples" / "match_sample.csv"
+BOARD = ROOT / "samples" / "board_sample.json"
 OUT = ROOT / "tests" / "out"
 
 
@@ -26,7 +28,7 @@ async def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     errors: list[str] = []
     async with async_playwright() as p:
-        browser = await p.chromium.launch(channel="chrome")   # PC에 설치된 크롬 사용 (크로뮴 따로 안 받음)
+        browser = await p.chromium.launch(channel="chrome", args=["--enable-unsafe-swiftshader"])   # PC에 설치된 크롬 사용 (크로뮴 따로 안 받음)
         page = await browser.new_page(viewport={"width": 1440, "height": 900}, accept_downloads=True)
         page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
         await page.goto(APP)
@@ -77,6 +79,34 @@ async def main() -> int:
         await page.wait_for_timeout(400)
         saved = await page.evaluate("JSON.parse(localStorage.getItem('tactical-notebook.v1'))")
         assert len(saved["teams"]["away"]["roster"]) == 15, "CSV 명단 인원이 다름"
+
+        # 6) 경기 CSV (두 팀을 한 파일로)
+        await page.set_input_files("#csvIn", str(MATCH_CSV))
+        await page.wait_for_timeout(400)
+        saved = await page.evaluate("JSON.parse(localStorage.getItem('tactical-notebook.v1'))")
+        assert saved["teams"]["home"]["name"] == "가람 FC" and len(saved["teams"]["away"]["roster"]) == 15, "경기 CSV가 두 팀으로 안 나뉨"
+
+        # 7) 트래커 board.json → 자리·등번호 창 → 장면으로 가져오기
+        before = len(saved["scenes"])
+        await page.set_input_files("#fileIn", str(BOARD))
+        await page.wait_for_timeout(400)
+        assert await page.evaluate("!document.getElementById('trk').hidden"), "트래커 불러오기 창이 안 열림"
+        await page.click("#trkOk")
+        await page.wait_for_timeout(400)
+        saved = await page.evaluate("JSON.parse(localStorage.getItem('tactical-notebook.v1'))")
+        assert len(saved["scenes"]) == before + 4, "트래커 장면 4개가 추가되지 않음"
+        assert len(saved["scenes"][saved["cur"]]["pieces"]) == 22, "트래커 장면의 선수 수가 다름"
+
+        # 8) 3D 보기 (WebGL이 없는 환경이면 건너뜀)
+        await page.keyboard.press("Digit3")
+        await page.wait_for_timeout(600)
+        if await page.evaluate("v3.on && v3.ok"):
+            assert await page.evaluate("v3.tokens.size") == 22, "3D 선수 수가 다름"
+            await page.screenshot(path=str(OUT / "view3d.png"))
+            await page.keyboard.press("Digit3")
+            assert not await page.evaluate("v3.on"), "2D로 돌아오지 않음"
+        else:
+            print("주의: 이 환경에서는 WebGL을 못 써서 3D 보기 확인을 건너뜀")
 
         await page.screenshot(path=str(OUT / "final.png"))
         await browser.close()

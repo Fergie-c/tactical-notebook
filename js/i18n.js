@@ -74,6 +74,7 @@ const HELP_ROWS = [
  ['<kbd>N</kbd>','새 장면 (지금 배치 복사)','New scene (copies current layout)'],
  ['<kbd>[</kbd> <kbd>]</kbd>','이전 / 다음 장면','Previous / next scene'],
  ['<kbd>Space</kbd>','지금 장면부터 모핑 재생 / 정지','Play morph from current scene / stop'],
+ ['<kbd>3</kbd>','2D ↔ 3D 보기 전환. 3D는 보기·녹화 전용(드래그 = 회전, 휠 = 확대, 더블클릭 = 기본 각도), 편집은 2D에서','Toggle 2D ↔ 3D view. 3D is for viewing and recording (drag = rotate, wheel = zoom, double-click = default angle); edit in 2D'],
  ['<kbd>G</kbd>','피치 보기 전환 (전체 → 왼쪽 절반 → 오른쪽 절반)','Cycle pitch view (full → left → right)'],
  ['<kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd>','실행취소 / 다시 실행','Undo / redo'],
  ['<kbd>Esc</kbd>','선택 해제, 선택 도구로 돌아가기, 재생 정지','Deselect, back to select tool, stop playback'],
@@ -85,6 +86,8 @@ const t = (k, vars) => { let s = (I18N[lang] && I18N[lang][k]) ?? I18N.ko[k] ?? 
 
 /* ---------- 2026-11-16 추가분: 트래커 불러오기, 경기 CSV, 3D 보기 ---------- */
 Object.assign(I18N.ko, {
+  exp_video_board:'보드만 영상 저장 (메모 없이 꽉 찬 화면)', v3_switch:'2D = 편집 · 3D = 입체로 보기·녹화 (단축키 3)', v3_bar:'3D 보기 · 드래그 = 회전, 휠 = 확대, 더블클릭 = 기본 각도', v3_reset:'기본 각도', v3_top:'위에서', v3_goal:'골대 뒤',
+  v3_hint:'3D 보기 · 편집은 2D에서 (3 키로 전환) · 내보내기는 지금 보이는 3D 그대로', v3_unsupported:'이 브라우저에서 3D(WebGL)를 쓸 수 없어요. 크롬·엣지 최신 버전에서 열어 주세요.',
   csv_match_template:'경기 양식 받기 (두 팀)', csv_match_done:'경기 명단 불러옴 · {h} {hn}명 / {a} {an}명', csv_teams3:"'팀' 칸에 팀이 {n}개 있어요. 한 파일에는 두 팀만 넣어 주세요.",
   csv_note:"한 줄에 한 명: 등번호,포지션,이름 (세부포지션,구분,영문명 열이 있으면 같이 읽어요) · 위에서 11명이 선발, 나머지는 후보('구분'에 교체라고 쓰면 자동으로 아래로) · 지금 선택한 팀 명단을 통째로 바꿔요. 맨 앞에 '팀' 열(홈/원정 또는 팀 이름)이 있으면 두 팀을 한 번에 바꿔요. Ctrl+Z로 되돌리기 · 파일을 이 칸에 끌어다 놓아도 돼요.",
   import_tip:'분석 파일(.json) 또는 AI 트래커의 board.json',
@@ -94,6 +97,8 @@ Object.assign(I18N.ko, {
   trk_empty:'board.json에 선수 위치가 없어요. export_board.py 결과가 맞는지 확인해 주세요.', trk_nothing:'가져올 선수가 없어요. 자리에 등번호를 골라 주세요.', trk_done:'트래커 장면 {n}개를 가져왔어요 · Ctrl+Z로 되돌리기', trk_scene_title:'트래커 {label}',
 });
 Object.assign(I18N.en, {
+  exp_video_board:'Save board-only video (full frame, no notes)', v3_switch:'2D = edit · 3D = view & record (shortcut 3)', v3_bar:'3D view · drag = rotate, wheel = zoom, double-click = default angle', v3_reset:'Default', v3_top:'Top', v3_goal:'Behind goal',
+  v3_hint:'3D view · edit in 2D (press 3 to switch) · exports use the 3D view as shown', v3_unsupported:'3D (WebGL) is not available in this browser. Use a recent Chrome or Edge.',
   csv_match_template:'Match template (both teams)', csv_match_done:'Match squads loaded · {h} {hn} / {a} {an}', csv_teams3:"The 'team' column has {n} teams. Put only two teams in one file.",
   csv_note:"One player per line: number,position,name (role, status and english columns are read if present) · the top 11 are starters, the rest are the bench (rows marked 'sub' go below automatically) · replaces the selected team's squad. With a leading 'team' column (home/away or team names) both squads are replaced at once. Ctrl+Z to undo · you can also drop the file here.",
   import_tip:'Analysis file (.json) or board.json from the AI tracker',

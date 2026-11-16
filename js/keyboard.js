@@ -25,7 +25,9 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.altKey) return;   // Alt combos belong to the browser/OS (formations moved to the dropdown, 2026-10-16)
+  if (c === 'Digit3' || c === 'Numpad3') { e.preventDefault(); setView3d(!v3.on); return; }   // 2D ↔ 3D 보기
   if (playing && c !== 'Space' && c !== 'Escape') return;
+  if (v3.on && !['Space', 'Escape', 'BracketLeft', 'BracketRight', 'PageUp', 'PageDown', 'KeyG', 'Slash'].includes(c)) return;   // 3D는 보기 전용: 편집 단축키 막기
   if (chain) {   // building a link/poly: Enter = finish this one (Enter again with nothing picked = leave the tool), Backspace = drop last, Esc = cancel
     if (c === 'Enter' || c === 'NumpadEnter') { e.preventDefault(); if (!chain.keys.length) setTool('select'); else chainCommit(); return; }
     if (c === 'Backspace') { e.preventDefault(); chainPop(); return; }

@@ -1,0 +1,208 @@
+/* Tactical Notebook — view3d.js: 3D(2.5D) 보기 모드. 편집은 2D에서 하고, 같은 장면 데이터를 입체로 보여 주기만 한다(보기·녹화용)
+   일반 <script>로 순서대로 로드됨(file:// 호환). 순서는 index.html 하단 참고. vendor/three.min.js(Three.js r128)가 먼저 로드되어 있어야 한다.
+
+   원리
+   - 바닥: 2D와 똑같은 drawPitch()·drawShape()로 캔버스 한 장에 잔디·라인·화살표·구역·연결선을 그려 바닥 텍스처로 쓴다.
+     → 잔디 줄 개수·바둑판·색 반전·후반 회전 같은 2D 설정이 3D에 그대로 따라온다(따로 구현하지 않음).
+   - 선수: 얇은 원기둥(윗면 = 유니폼 무늬) + 번호는 항상 카메라를 보는 스프라이트(빌보드) + 그림자.
+   - 좌표: 피치 (x, y) m → 세계 (x - 52.5, 높이, y - 34). 기본 카메라는 아래쪽 터치라인 쪽에서 내려다봐서 2D와 좌우·위아래가 같다.
+   - 같은 프레임(fr)을 받으므로 재생(모핑)·PNG 카드·영상에서 2D와 같은 타이밍으로 움직인다. */
+'use strict';
+
+/* 룩(색·광택·조명) — 전부 임시값. thetacticsapp 정지 프레임을 받으면 여기 숫자만 맞추면 된다. */
+const V3_LOOK = {
+  bg: 0x0d1512,            // 임시: 배경(피치 바깥)
+  ambient: 0.66,           // 임시: 전체 밝기
+  sun: 0.95,               // 임시: 그림자를 만드는 주 조명 세기
+  sunPos: [-30, 95, 55],   // 임시: 조명 위치(세계 좌표)
+  shadow: 0.38,            // 임시: 그림자 진하기(0~1)
+  tokenH: 1.2,             // 임시: 선수 원판 두께(m)
+  tokenRough: 0.42,        // 임시: 원판 광택(0 = 번쩍, 1 = 무광)
+  sideDarken: 0.72,        // 임시: 원판 옆면을 팀 색보다 얼마나 어둡게
+  fov: 30,                 // 임시: 화각(작을수록 원근이 약해져 2.5D 느낌)
+  el: 60,                  // 기본 내려다보는 각도(도). 90 = 완전 탑다운
+};
+const V3_PX = 20;          // 바닥 텍스처 해상도: 1m = 20px (113×76m → 2260×1520)
+
+const v3 = { on:false, ok:null, fitKey:'' };   // on: 3D 보기 켜짐 / ok: WebGL 준비됨(null = 아직 안 해 봄, false = 실패)
+
+function v3Cam(){ return doc.cam3d; }
+function v3Init(){
+  if (v3.ok !== null) return v3.ok;
+  v3.ok = false;
+  if (typeof THREE === 'undefined') return false;
+  let renderer; try { renderer = new THREE.WebGLRenderer({ canvas:$('board3d'), antialias:true, alpha:false, preserveDrawingBuffer:false }); } catch (e) { console.warn('WebGL을 쓸 수 없음', e); return false; }
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene3 = new THREE.Scene(); scene3.background = new THREE.Color(V3_LOOK.bg);
+  const camera = new THREE.PerspectiveCamera(V3_LOOK.fov, 16 / 9, 1, 2000);
+  scene3.add(new THREE.AmbientLight(0xffffff, V3_LOOK.ambient));
+  const sun = new THREE.DirectionalLight(0xffffff, V3_LOOK.sun); sun.position.set(...V3_LOOK.sunPos); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  const sc = sun.shadow.camera; sc.left = -75; sc.right = 75; sc.top = 60; sc.bottom = -60; sc.near = 1; sc.far = 300; sun.shadow.bias = -0.0005; scene3.add(sun);
+  // 바닥: 잔디·라인·바닥에 붙는 그림(화살표 등)을 그린 캔버스 한 장
+  const gcv = document.createElement('canvas'); gcv.width = VIEWS.full.w * V3_PX; gcv.height = VIEWS.full.h * V3_PX;
+  const gtex = new THREE.CanvasTexture(gcv); gtex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(VIEWS.full.w, VIEWS.full.h), new THREE.MeshBasicMaterial({ map:gtex }));   // Basic: 조명과 무관하게 2D와 같은 색
+  ground.rotation.x = -Math.PI / 2; scene3.add(ground);
+  const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(VIEWS.full.w, VIEWS.full.h), new THREE.ShadowMaterial({ opacity:V3_LOOK.shadow }));   // 그림자만 받는 투명한 면
+  shadowPlane.rotation.x = -Math.PI / 2; shadowPlane.position.y = 0.02; shadowPlane.receiveShadow = true; scene3.add(shadowPlane);
+  Object.assign(v3, { ok:true, renderer, scene3, camera, gcv, gctx:gcv.getContext('2d'), gtex, tokens:new Map(), texts:new Map(), ball:null, texCache:new Map(), w:0, h:0,
+    geoBody:new THREE.CylinderGeometry(1, 1, 1, 56), geoBall:new THREE.SphereGeometry(0.95, 28, 20) });
+  return true;
+}
+
+/* ---------- 텍스처 ---------- */
+function v3Canvas(w, h){ const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv; }
+function v3Tex(cv){ const tx = new THREE.CanvasTexture(cv); tx.anisotropy = 4; return tx; }
+function v3TopTex(tm, isGK){   // 원판 윗면: 2D 토큰과 같은 유니폼 무늬 + 테두리
+  const cv = v3Canvas(256, 256); drawToken(cv.getContext('2d'), 128, 128, 119, tm, isGK, '', 0); return v3Tex(cv);
+}
+function v3NumTex(tm, isGK, txt){   // 번호(또는 포지션 글자): 빌보드 스프라이트용
+  const cv = v3Canvas(256, 256), c = cv.getContext('2d'), st = numStyle(tm, isGK), s = String(txt);
+  const fs = 168 * ({ 1:1, 2:1, 3:.74 }[s.length] || .58);
+  c.font = `700 ${fs}px ${getCss('--f-display')}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  if (st.outline) { c.lineJoin = 'round'; c.lineWidth = Math.max(10, fs * .16); c.strokeStyle = st.outline; c.strokeText(s, 128, 134); }
+  c.fillStyle = st.fill; c.fillText(s, 128, 134); return v3Tex(cv);
+}
+function v3LabelTex(text, color, bg, weight){   // 이름표·텍스트 도형: 둥근 상자 + 글자. 반환: {tex, aspect}
+  const fs = 64, pad = 22, m = v3Canvas(8, 8).getContext('2d'); m.font = `${weight} ${fs}px ${getCss('--f-body')}`;
+  const w = Math.ceil(m.measureText(text).width + pad * 2), h = Math.ceil(fs * 1.45), cv = v3Canvas(w, h), c = cv.getContext('2d');
+  c.fillStyle = bg; roundRect(c, 0, 0, w, h, 18); c.fill();
+  c.font = `${weight} ${fs}px ${getCss('--f-body')}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = color; c.fillText(text, w / 2, h / 2 + fs * .04);
+  return { tex:v3Tex(cv), aspect:w / h };
+}
+function v3BallTex(){
+  const cv = v3Canvas(256, 128), c = cv.getContext('2d'); c.fillStyle = '#f4f5f6'; c.fillRect(0, 0, 256, 128); c.fillStyle = '#17191c';
+  for (const [x, y] of [[32, 34], [96, 64], [160, 34], [224, 64], [32, 98], [160, 98], [96, 6], [224, 122]]) { c.beginPath(); for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + i * Math.PI * 2 / 5; c[i ? 'lineTo' : 'moveTo'](x + 15 * Math.cos(a), y + 13 * Math.sin(a)); } c.closePath(); c.fill(); }
+  return v3Tex(cv);
+}
+function v3Cached(key, make){ let v = v3.texCache.get(key); if (!v) { v = make(); v3.texCache.set(key, v); } return v; }
+const v3KitKey = (tm, isGK) => [tm.color, tm.kit.pattern, tm.kit.c2, tm.kit.c3, tm.kit.num, tm.kit.gk, isGK ? 1 : 0].join('|');
+
+/* ---------- 바닥 그림 (2D 그리기 함수 재사용) ---------- */
+function v3PaintGround(fr, flip){
+  const c = v3.gctx, TT = makeT('full', { x:0, y:0, w:v3.gcv.width, h:v3.gcv.height }, flip);
+  c.setTransform(1, 0, 0, 1, 0, 0); drawPitch(c, TT.base);
+  const pos = {}; for (const p of fr.pieces) if (p.alpha > .01) pos[p.key] = p;
+  const under = sh => isArea(sh) || sh.type === 'poly';
+  for (const { sh, alpha } of fr.shapes) if (alpha > .01 && under(sh)) drawShape(c, sh, TT, alpha, false, false, pos);
+  for (const { sh, alpha } of fr.shapes) if (alpha > .01 && !under(sh) && sh.type !== 'text') drawShape(c, sh, TT, alpha, false, false, pos);
+  const B = TT.base, bf = 1.5 * B.s, gap = .35 * B.s;   // 워터마크(2D와 같은 자리)
+  c.save(); c.font = `700 ${bf}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(bf * .08).toFixed(1)}px`; c.fillStyle = 'rgba(255,255,255,.55)';
+  c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, B.X(0), B.Y(0) - gap); c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, B.X(105), B.Y(68) + gap); c.restore();
+  v3.gtex.needsUpdate = true;
+}
+
+/* ---------- 선수·공·글자 ---------- */
+function v3MakeToken(){
+  const side = new THREE.MeshStandardMaterial({ roughness:V3_LOOK.tokenRough, metalness:.05, transparent:true });
+  const top = new THREE.MeshStandardMaterial({ roughness:V3_LOOK.tokenRough, metalness:.05, transparent:true });
+  const body = new THREE.Mesh(v3.geoBody, [side, top, side]); body.castShadow = true; body.rotation.y = Math.PI / 2;   // 윗면 무늬가 화면 기준으로 똑바로 서게
+  const num = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false }));
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false })); tag.visible = false;
+  const g = new THREE.Group(); g.add(body, num, tag); v3.scene3.add(g);
+  return { g, body, side, top, num, tag, sig:'', tagSig:'' };
+}
+function v3SyncPieces(fr, flip){
+  const seen = new Set(), ts = tokScale(), R = R_TOKEN * ts, H = V3_LOOK.tokenH * ts, mode = doc.labelMode;
+  for (const p of fr.pieces) {
+    if (p.alpha <= .01) continue; seen.add(p.key);
+    let o = v3.tokens.get(p.key); if (!o) { o = v3MakeToken(); v3.tokens.set(p.key, o); }
+    const tm = doc.teams[p.team], isGK = p.pos === 'GK', role = p.role || p.pos, inDisc = mode === 'pos' ? role : p.num;
+    const sig = v3KitKey(tm, isGK) + '#' + inDisc + '#' + ts;
+    if (o.sig !== sig) {
+      o.sig = sig;
+      o.top.map = v3Cached('top:' + v3KitKey(tm, isGK), () => v3TopTex(tm, isGK)); o.top.needsUpdate = true;
+      o.side.color.set((isGK && tm.kit.gk) ? tm.kit.gk : tm.color).multiplyScalar(V3_LOOK.sideDarken);
+      o.num.material.map = v3Cached('num:' + v3KitKey(tm, isGK) + ':' + inDisc, () => v3NumTex(tm, isGK, inDisc)); o.num.material.needsUpdate = true;
+      o.body.scale.set(R, H, R); o.body.position.y = H / 2; o.num.scale.set(R * 2.05, R * 2.05, 1);
+    }
+    const tagText = doc.showNames ? (mode === 'numpos' ? [role, p.name].filter(Boolean).join(' ') : p.name) : '';
+    if (o.tagSig !== tagText + '#' + ts) {
+      o.tagSig = tagText + '#' + ts; o.tag.visible = !!tagText;
+      if (tagText) { const L = v3Cached('tag:' + tagText, () => v3LabelTex(tagText, '#ffffff', 'rgba(8,14,10,.62)', 600)); o.tag.material.map = L.tex; o.tag.material.needsUpdate = true; o.tag.scale.set(1.5 * ts * L.aspect, 1.5 * ts, 1); }
+    }
+    o.g.position.set((flip ? 105 - p.x : p.x) - 52.5, 0, (flip ? 68 - p.y : p.y) - 34);
+    o.side.opacity = o.top.opacity = o.num.material.opacity = o.tag.material.opacity = p.alpha; o.body.castShadow = p.alpha > .5; o.R = R; o.H = H;
+  }
+  for (const [k, o] of v3.tokens) if (!seen.has(k)) { v3.scene3.remove(o.g); o.side.dispose(); o.top.dispose(); o.num.material.dispose(); o.tag.material.dispose(); v3.tokens.delete(k); }
+  // 공
+  if (fr.ball && fr.ball.alpha > .01) {
+    if (!v3.ball) { v3.ball = new THREE.Mesh(v3.geoBall, new THREE.MeshStandardMaterial({ map:v3BallTex(), roughness:.5, transparent:true })); v3.ball.castShadow = true; v3.scene3.add(v3.ball); }
+    v3.ball.visible = true; v3.ball.material.opacity = fr.ball.alpha; v3.ball.position.set((flip ? 105 - fr.ball.x : fr.ball.x) - 52.5, .95, (flip ? 68 - fr.ball.y : fr.ball.y) - 34);
+  } else if (v3.ball) v3.ball.visible = false;
+  // 텍스트 도형: 세워서(빌보드) 보여 준다
+  const seenT = new Set();
+  for (const { sh, alpha } of fr.shapes) {
+    if (sh.type !== 'text' || alpha <= .01 || !sh.text) continue; seenT.add(sh.id);
+    const col = resolveColor(sh.color), sig = sh.text + '|' + col + '|' + sh.w; let o = v3.texts.get(sh.id);
+    if (!o) { o = { sp:new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false })), sig:'' }; v3.scene3.add(o.sp); v3.texts.set(sh.id, o); }
+    if (o.sig !== sig) { o.sig = sig; const L = v3Cached('txt:' + sig, () => v3LabelTex(sh.text, col, luminance(col) < .12 ? 'rgba(255,255,255,.88)' : 'rgba(10,18,13,.74)', 600)); o.sp.material.map = L.tex; o.sp.material.needsUpdate = true; const hgt = 2.5 * ({ 1:.8, 3:1.3 }[sh.w] || 1); o.sp.scale.set(hgt * L.aspect, hgt, 1); }
+    o.sp.material.opacity = alpha; o.sp.position.set((flip ? 105 - sh.x1 : sh.x1) - 52.5, 1.6, (flip ? 68 - sh.y1 : sh.y1) - 34);
+  }
+  for (const [k, o] of v3.texts) if (!seenT.has(k)) { v3.scene3.remove(o.sp); o.sp.material.dispose(); v3.texts.delete(k); }
+}
+
+/* ---------- 카메라 ---------- */
+/* 보이는 범위(전체/왼쪽 절반/오른쪽 절반)가 화면에 꽉 차도록 거리를 자동으로 맞추고, 사용자의 확대(zoom)를 곱한다 */
+function v3PlaceCamera(aspect){
+  const cam = v3.camera, cfg = v3Cam(), v = VIEWS[doc.view];
+  const tx = v.x0 + v.w / 2 - 52.5, tz = v.y0 + v.h / 2 - 34, az = cfg.az * Math.PI / 180, el = cfg.el * Math.PI / 180;
+  const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+  cam.aspect = aspect; cam.fov = V3_LOOK.fov; cam.up.set(0, 1, 0); if (cfg.el > 89.4) cam.up.set(-Math.sin(az), 0, -Math.cos(az));   // 완전 탑다운에서 위쪽 방향 고정
+  const target = new THREE.Vector3(tx, 0, tz), corners = [[v.x0, v.y0], [v.x0 + v.w, v.y0], [v.x0, v.y0 + v.h], [v.x0 + v.w, v.y0 + v.h]].map(([x, y]) => new THREE.Vector3(x - 52.5, 0, y - 34));
+  const fits = d => { cam.position.copy(target).addScaledVector(dir, d); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); return corners.every(c => { const q = c.clone().project(cam); return Math.abs(q.x) <= .985 && Math.abs(q.y) <= .985; }); };
+  let lo = 20, hi = 900; for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
+  cam.position.copy(target).addScaledVector(dir, hi / cfg.zoom); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  // 번호·이름표를 카메라에 맞춰 놓기: 번호는 원판 윗면 중심에서 카메라 쪽으로 살짝 당겨서(같은 시선 위) 원판에 파묻히지 않게, 이름표는 화면 기준 아래쪽
+  const down = new THREE.Vector3(dir.x, 0, dir.z); if (down.lengthSq() < 1e-6) down.set(-cam.up.x, 0, -cam.up.z); down.normalize();
+  const wp = new THREE.Vector3();
+  for (const o of v3.tokens.values()) {
+    wp.set(o.g.position.x, o.H + .03, o.g.position.z); const toCam = cam.position.clone().sub(wp).normalize();
+    o.num.position.copy(toCam).multiplyScalar(o.R * 1.15).add(new THREE.Vector3(0, o.H + .03, 0));
+    o.tag.position.copy(down).multiplyScalar(o.R + 1.25 * tokScale()).add(new THREE.Vector3(0, .55, 0));
+  }
+}
+
+/* ---------- 그리기 ---------- */
+function v3RenderAt(fr, flip, w, h, pixelRatio){
+  const r = v3.renderer; r.setPixelRatio(pixelRatio);
+  if (v3.w !== w || v3.h !== h || v3.pr !== pixelRatio) { r.setSize(w, h, false); v3.w = w; v3.h = h; v3.pr = pixelRatio; }
+  if (fr) { v3PaintGround(fr, flip); v3SyncPieces(fr, flip); v3.last = { fr, flip }; }
+  v3PlaceCamera(w / h); r.render(v3.scene3, v3.camera);
+}
+/* 화면용: draw()가 2D를 그린 뒤 부른다. fr 없이 부르면 카메라만 다시(드래그 회전·확대) */
+function v3Render(fr, flip){
+  if (!v3.on || !v3.ok) return;
+  const w = Math.max(1, Math.round(W)), h = Math.max(1, Math.round(H));
+  if (!fr && !v3.last) return;
+  v3RenderAt(fr, flip, w, h, Math.min(window.devicePixelRatio || 1, 2));
+}
+/* 내보내기용: 정해진 크기로 한 장 그려서 그 캔버스를 돌려준다(바로 drawImage 할 것). 화면 크기는 다음 draw() 때 되돌아온다 */
+function v3Image(fr, flip, w, h){ v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); return v3.renderer.domElement; }
+
+/* ---------- 켜기/끄기·조작 ---------- */
+function setView3d(on){
+  if (on && !v3Init()) { toast(t('v3_unsupported')); on = false; }
+  v3.on = !!on; document.body.classList.toggle('is3d', v3.on); $('board3d').hidden = !v3.on; $('v3Bar').hidden = !v3.on;
+  document.querySelectorAll('#dimSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.dim === '3d') === v3.on)));
+  if (v3.on) { sel.clear(); selShapes.clear(); draft = null; box = null; if (chain) { chain = null; setTool('select'); } closeSummon(); toast(t('v3_hint')); }
+  draw();
+}
+function v3Changed(){ v3Cam().az = ((v3Cam().az % 360) + 540) % 360 - 180; persist(); v3Render(); }
+(() => {
+  const el = $('board3d'); let d = null;
+  el.addEventListener('pointerdown', e => { d = { x:e.clientX, y:e.clientY }; el.setPointerCapture(e.pointerId); });
+  el.addEventListener('pointermove', e => { if (!d) return; const c = v3Cam(); c.az -= (e.clientX - d.x) * .35; c.el = clamp(c.el + (e.clientY - d.y) * .3, 20, 90); d = { x:e.clientX, y:e.clientY }; v3Render(); });
+  const up = () => { if (d) { d = null; v3Changed(); } }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  el.addEventListener('wheel', e => { e.preventDefault(); const c = v3Cam(); c.zoom = clamp(c.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), .5, 3); v3Changed(); }, { passive:false });
+  el.addEventListener('dblclick', () => v3Preset('reset'));
+})();
+function v3Preset(name){
+  const c = v3Cam();
+  if (name === 'reset') Object.assign(c, { az:0, el:V3_LOOK.el, zoom:1 });
+  else if (name === 'top') Object.assign(c, { az:0, el:90, zoom:1 });
+  else if (name === 'goal') Object.assign(c, { az:-90, el:42, zoom:1 });   // 왼쪽 골대 뒤에서 오른쪽(홈 공격 방향)을 바라봄
+  v3Changed();
+}
+document.querySelectorAll('#dimSeg button').forEach(b => b.onclick = () => setView3d(b.dataset.dim === '3d'));
+document.querySelectorAll('#v3Bar button[data-cam]').forEach(b => b.onclick = () => v3Preset(b.dataset.cam));

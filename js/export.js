@@ -33,7 +33,8 @@ function drawCard(c, fr, memoIdx, textless){   // textless: board + legend only 
   const dest = { x:56, y:132, w:1250, h:850 };
   const TT = makeT(doc.view, dest, isFlipped(sc));
   c.save(); roundRect(c, TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h, 14); c.clip();
-  renderFrame(c, TT, fr, { showNames:doc.showNames });
+  if (v3.on) c.drawImage(v3Image(fr, isFlipped(sc), TT.clip.w, TT.clip.h), TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h);   // 3D 보기 중이면 카드의 보드도 3D
+  else renderFrame(c, TT, fr, { showNames:doc.showNames });
   c.restore();
   // legend
   let lx = TT.clip.x, ly = TT.clip.y + TT.clip.h + 44; c.font = `500 20px ${B}`;
@@ -71,12 +72,19 @@ async function exportAll(){ await fontsReady(); toast(t('png_all', { n:doc.scene
 function exportJson(){ download(new Blob([JSON.stringify(doc, null, 1)], { type:'application/json' }), `${slug()}.json`); toast(t('toast_saved')); }
 /* video: WebCodecs H.264 → plain MP4 (mp4.js). Encoded frame by frame, so it is faster than real time, unaffected by switching tabs,
    and the file has a proper duration + index (seekable everywhere). Browsers without WebCodecs H.264 fall back to MediaRecorder. */
-async function exportVideo(){
+/* board only: the pitch fills the whole 1920×1080 frame, no memo card (for reels / blog clips). 2D or 3D, whichever is on screen */
+function drawBoardOnly(c, fr){
+  c.setTransform(1,0,0,1,0,0);
+  if (v3.on) { c.drawImage(v3Image(fr, !!fr.flip, CW, CH), 0, 0, CW, CH); return; }
+  c.fillStyle = '#244c33'; c.fillRect(0, 0, CW, CH);
+  renderFrame(c, makeT(doc.view, { x:0, y:0, w:CW, h:CH }, !!fr.flip), fr, { showNames:doc.showNames });
+}
+async function exportVideo(boardOnly){
   if (doc.scenes.length < 2) return toast(t('toast_need2'));
   if (playing) stop();
   await fontsReady();
   const config = await pickH264(CW, CH);
-  if (!config) return exportVideoRecorder();
+  if (!config) return exportVideoRecorder(boardOnly);
   const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const c = cv.getContext('2d');
   const tm = timing(), n = doc.scenes.length, total = (n - 1) * (tm.h + tm.tr) + tm.h * 1.6;   // same end point as playback's "done"
   const frames = Math.ceil(total / 1000 * MP4_FPS) + 1;
@@ -84,31 +92,32 @@ async function exportVideo(){
   $('recTitle').textContent = t('rec_encode'); $('recHint').textContent = t('rec_encode_hint');
   try {
     const blob = await encodeMp4(config, cv, frames,
-      i => { const r = frameAt(i * 1000 / MP4_FPS, 0, tm); drawCard(c, r.fr, r.idx); },
+      i => { const r = frameAt(i * 1000 / MP4_FPS, 0, tm); if (boardOnly) drawBoardOnly(c, r.fr); else drawCard(c, r.fr, r.idx); },
       (i, all) => { $('recProg').textContent = `${Math.round(i / all * 100)}%`; },
       () => recording.cancelled);
-    if (blob) { download(blob, `${slug()}.mp4`); toast(t('rec_done', { ext:'MP4' })); }
+    if (blob) { download(blob, `${slug()}${boardOnly ? '_board' : ''}${v3.on ? '_3d' : ''}.mp4`); toast(t('rec_done', { ext:'MP4' })); }
   } catch (err) { console.error(err); toast(t('rec_failed')); }
   finally { recording = null; $('rec').hidden = true; applyI18n(); }
 }
 /* fallback (no WebCodecs): real-time MediaRecorder capture — playable, but players may not show the length or seek */
-async function exportVideoRecorder(){
+async function exportVideoRecorder(boardOnly){
   if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return toast(t('rec_unsupported'));
   const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
   const mime = types.find(m => MediaRecorder.isTypeSupported(m)); if (!mime) return toast(t('rec_unsupported'));
   const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
   const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const c = cv.getContext('2d');
-  drawCard(c, frameOf(doc.scenes[0]), 0);
+  const paint = (fr, idx) => boardOnly ? drawBoardOnly(c, fr) : drawCard(c, fr, idx);
+  paint(Object.assign(frameOf(doc.scenes[0]), { flip:isFlipped(doc.scenes[0]) }), 0);
   const stream = cv.captureStream(30); const rec = new MediaRecorder(stream, { mimeType:mime, videoBitsPerSecond:10_000_000 }); const chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   recording = { rec, cancelled:false }; $('rec').hidden = false;
-  rec.onstop = () => { const cancelled = recording && recording.cancelled; recording = null; $('rec').hidden = true; if (!cancelled) { download(new Blob(chunks, { type:mime.split(';')[0] }), `${slug()}.${ext}`); toast(t('rec_done', { ext:ext.toUpperCase() })); } };
+  rec.onstop = () => { const cancelled = recording && recording.cancelled; recording = null; $('rec').hidden = true; if (!cancelled) { download(new Blob(chunks, { type:mime.split(';')[0] }), `${slug()}${boardOnly ? '_board' : ''}${v3.on ? '_3d' : ''}.${ext}`); toast(t('rec_done', { ext:ext.toUpperCase() })); } };
   rec.start(250);
   const tm = timing(); const t0 = performance.now(); let lastDraw = 0;
   const tick = now => {
     if (!recording) return; if (recording.cancelled) { rec.stop(); return; }
     const r = frameAt(now - t0, 0, tm);
-    if (now - lastDraw > 30) { drawCard(c, r.fr, r.idx); lastDraw = now; }
+    if (now - lastDraw > 30) { paint(r.fr, r.idx); lastDraw = now; }
     $('recProg').textContent = `${r.idx + 1} / ${doc.scenes.length}`;
     if (r.done) { setTimeout(() => rec.state !== 'inactive' && rec.stop(), 300); return; }
     requestAnimationFrame(tick);

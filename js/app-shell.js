@@ -41,7 +41,8 @@ function closeMenus(){ $('exportMenu').hidden = true; $('btnExport').setAttribut
 document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) closeMenus(); });
 $('expPng').onclick = () => { closeMenus(); exportPng(); };
 $('expAll').onclick = () => { closeMenus(); exportAll(); };
-$('expVideo').onclick = () => { closeMenus(); exportVideo(); };
+$('expVideo').onclick = () => { closeMenus(); exportVideo(false); };
+$('expVideoBoard').onclick = () => { closeMenus(); exportVideo(true); };
 $('expJson').onclick = () => { closeMenus(); exportJson(); };
 $('expPdf').onclick = () => { closeMenus(); exportPdf(); };
 $('expPptx').onclick = () => { closeMenus(); exportPptx(); };
