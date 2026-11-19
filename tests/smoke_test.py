@@ -97,7 +97,14 @@ async def main() -> int:
         assert len(saved["scenes"]) == before + 4, "트래커 장면 4개가 추가되지 않음"
         assert len(saved["scenes"][saved["cur"]]["pieces"]) == 22, "트래커 장면의 선수 수가 다름"
 
-        # 8) 3D 보기 (WebGL이 없는 환경이면 건너뜀)
+        # 8) 세로(9:16) 영상 — 메모 포함
+        async with page.expect_download(timeout=120000) as dl:
+            await page.click("#btnExport"); await page.click("#expVideoV")
+        d = await dl.value
+        assert d.suggested_filename.endswith("_vertical.mp4"), "세로 영상 파일 이름이 다름: " + d.suggested_filename
+        await d.save_as(str(OUT / d.suggested_filename))
+
+        # 9) 3D 보기 (WebGL이 없는 환경이면 건너뜀)
         await page.keyboard.press("Digit3")
         await page.wait_for_timeout(600)
         if await page.evaluate("v3.on && v3.ok"):

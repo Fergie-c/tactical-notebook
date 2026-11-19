@@ -79,39 +79,110 @@ function drawBoardOnly(c, fr){
   c.fillStyle = '#244c33'; c.fillRect(0, 0, CW, CH);
   renderFrame(c, makeT(doc.view, { x:0, y:0, w:CW, h:CH }, !!fr.flip), fr, { showNames:doc.showNames });
 }
-async function exportVideo(boardOnly){
+/* ---------- 세로(9:16) 내보내기 — 릴스·쇼츠용 (added 2026-11-20) ----------
+   피치를 세워서 홈이 위쪽으로 공격하게 그린다(후반 장면은 2D처럼 반대로). 2D는 캔버스를 -90° 돌려서 같은 renderFrame()으로 그리고,
+   선수·번호·글자만 upright()로 다시 세운다. 3D는 카메라를 골대 뒤 방향으로 90° 돌려 찍는다(v3Image의 azOff). */
+const VW = 1080, VH = 1920;
+function drawPitchVertical(c, fr, box, flip){   // box 안에 세로 피치. 돌려 그린 뒤 화면 기준 피치 사각형을 돌려준다
+  const T = makeT(doc.view, { x:0, y:0, w:box.h, h:box.w }, flip); T.rot = T.base.rot = -Math.PI / 2;
+  const k = T.clip, rect = { x:box.x + k.y, y:box.y + box.h - k.x - k.w, w:k.h, h:k.w };
+  c.save(); c.translate(box.x, box.y + box.h); c.rotate(-Math.PI / 2);
+  renderFrame(c, T, fr, { showNames:doc.showNames, noMark:true });
+  c.restore(); return rect;
+}
+function verticalBoard(c, fr, box, flip, round){   // 2D 또는 3D(지금 화면 그대로)로 box를 채움
+  c.save(); if (round) { roundRect(c, box.x, box.y, box.w, box.h, round); c.clip(); }
+  if (v3.on) c.drawImage(v3Image(fr, flip, box.w, box.h, -90), box.x, box.y, box.w, box.h);
+  else { c.fillStyle = '#244c33'; c.fillRect(box.x, box.y, box.w, box.h); drawPitchVertical(c, fr, box, flip); }
+  c.restore();
+}
+function vMark(c, x, y, align, alpha){ c.save(); c.font = `700 22px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = '2px'; c.fillStyle = `rgba(255,255,255,${alpha})`; c.textAlign = align; c.textBaseline = 'alphabetic'; c.fillText(BRAND, x, y); c.restore(); }
+/* 보드만: 화면 전체가 피치 */
+function drawBoardOnlyV(c, fr){
+  c.setTransform(1,0,0,1,0,0); c.fillStyle = '#1b3a28'; c.fillRect(0, 0, VW, VH);
+  verticalBoard(c, fr, { x:0, y:70, w:VW, h:VH - 170 }, !!fr.flip, 0);
+  vMark(c, VW / 2, VH - 48, 'center', .5);
+}
+/* 메모 포함: 위 = 분석 제목·장면 제목·전후반/시간, 가운데 = 보드, 아래 = 관찰·핵심 포인트.
+   위아래 약 140px는 릴스·쇼츠 화면의 버튼·자막에 가려지기 쉬워서 비워 둔다 */
+function drawCardV(c, fr, memoIdx){
+  const sc = doc.scenes[memoIdx], n = doc.scenes.length, D = getCss('--f-display'), B = getCss('--f-body'), M = getCss('--f-mono');
+  const ink = '#f2f5f1', muted = '#9fb3a6', accent = '#7fd3a2', bg = '#0f1a14', X0 = 64, PW = VW - X0 * 2;
+  c.setTransform(1,0,0,1,0,0); c.fillStyle = bg; c.fillRect(0, 0, VW, VH); c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  let y = 170;
+  c.fillStyle = muted; c.font = `500 24px ${M}`; c.fillText([(doc.meta.title || ''), doc.meta.date].filter(Boolean).join('  ·  ').slice(0, 52), X0, y);
+  c.textAlign = 'right'; c.fillStyle = accent; c.font = `700 28px ${D}`; c.fillText(`${String(memoIdx + 1).padStart(2,'0')} / ${String(n).padStart(2,'0')}`, VW - X0, y); c.textAlign = 'left';
+  y += 70; c.fillStyle = ink; c.font = `700 62px ${D}`;
+  for (const ln of wrapLines(c, sc.title || t('untitled'), PW, 2)) { c.fillText(ln, X0, y); y += 70; }
+  let cx = X0; y += 6;
+  const chip = (lab, val) => { if (!val) return; c.font = `500 26px ${M}`; const txt = lab ? `${lab}  ${val}` : val; const w = c.measureText(txt).width + 36; if (cx + w > X0 + PW) { cx = X0; y += 62; } c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = 2; roundRect(c, cx, y - 36, w, 52, 26); c.stroke(); c.fillStyle = ink; c.fillText(txt, cx + 18, y); cx += w + 12; };
+  chip('', t('half_' + sc.half)); chip(t('card_time'), sc.time); chip(t('card_clip'), sc.clip);
+  const top = y + 44;
+  // 아래 글: 먼저 줄 수를 재서 보드가 남는 높이를 갖게 한다
+  c.font = `400 34px ${B}`; const obs = sc.obs ? wrapLines(c, sc.obs, PW, 4) : [];
+  c.font = `600 34px ${B}`; const key = sc.key ? wrapLines(c, sc.key, PW - 56, 3) : [];
+  const bottomH = (obs.length ? 44 + obs.length * 48 + 20 : 0) + (key.length ? 76 + key.length * 48 + 10 : 0);
+  const bottom = VH - 150 - bottomH;
+  const bh = Math.max(600, bottom - top - 30), v = VIEWS[doc.view], bw = v3.on ? PW + 48 : Math.min(PW + 48, Math.round(bh * v.h / v.w));   // 2D는 피치 비율에 맞춰 폭을 줄임(양옆 띠 없애기)
+  verticalBoard(c, fr, { x:(VW - bw) / 2, y:top, w:bw, h:bh }, isFlipped(sc), 22);
+  y = Math.max(bottom, top + 630);
+  if (obs.length) { c.fillStyle = muted; c.font = `600 22px ${B}`; c.fillText(t('card_obs').toUpperCase(), X0, y); y += 44; c.fillStyle = ink; c.font = `400 34px ${B}`; for (const ln of obs) { c.fillText(ln, X0, y); y += 48; } y += 20; }
+  if (key.length) {
+    const bh = 76 + key.length * 48; c.fillStyle = 'rgba(127,211,162,.14)'; roundRect(c, X0, y - 10, PW, bh, 16); c.fill();
+    c.fillStyle = accent; c.font = `600 22px ${B}`; c.fillText(t('card_key').toUpperCase(), X0 + 28, y + 30);
+    c.fillStyle = ink; c.font = `600 34px ${B}`; let yy = y + 78; for (const ln of key) { c.fillText(ln, X0 + 28, yy); yy += 48; }
+  }
+  vMark(c, X0, VH - 70, 'left', .45);
+  if (doc.meta.analyst) { c.fillStyle = muted; c.font = `400 22px ${M}`; c.textAlign = 'right'; c.fillText(`${t('card_analyst')} · ${doc.meta.analyst}`, VW - X0, VH - 70); c.textAlign = 'left'; }
+}
+async function exportPngV(boardOnly){
+  await fontsReady(); const cv = document.createElement('canvas'); cv.width = VW; cv.height = VH; const c = cv.getContext('2d');
+  const fr = Object.assign(frameOf(scene()), { flip:isFlipped(scene()) });
+  if (boardOnly) drawBoardOnlyV(c, fr); else drawCardV(c, fr, doc.cur);
+  const b = await new Promise(r => cv.toBlob(r, 'image/png'));
+  download(b, `${slug()}_scene${String(doc.cur + 1).padStart(2,'0')}_vertical${boardOnly ? '_board' : ''}${v3.on ? '_3d' : ''}.png`); toast(t('png_done'));
+}
+
+/* layout: 'card'(메모 포함) | 'board'(보드만) / vertical: 세로 9:16. 예전 호출 exportVideo(true/false)도 그대로 동작 */
+async function exportVideo(boardOnly, vertical){
   if (doc.scenes.length < 2) return toast(t('toast_need2'));
   if (playing) stop();
   await fontsReady();
-  const config = await pickH264(CW, CH);
-  if (!config) return exportVideoRecorder(boardOnly);
-  const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const c = cv.getContext('2d');
+  const w = vertical ? VW : CW, h = vertical ? VH : CH;
+  const config = await pickH264(w, h);
+  if (!config) return exportVideoRecorder(boardOnly, vertical);
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d');
   const tm = timing(), n = doc.scenes.length, total = (n - 1) * (tm.h + tm.tr) + tm.h * 1.6;   // same end point as playback's "done"
   const frames = Math.ceil(total / 1000 * MP4_FPS) + 1;
   recording = { cancelled:false }; $('rec').hidden = false;
   $('recTitle').textContent = t('rec_encode'); $('recHint').textContent = t('rec_encode_hint');
   try {
     const blob = await encodeMp4(config, cv, frames,
-      i => { const r = frameAt(i * 1000 / MP4_FPS, 0, tm); if (boardOnly) drawBoardOnly(c, r.fr); else drawCard(c, r.fr, r.idx); },
+      i => { const r = frameAt(i * 1000 / MP4_FPS, 0, tm); paintVideo(c, r.fr, r.idx, boardOnly, vertical); },
       (i, all) => { $('recProg').textContent = `${Math.round(i / all * 100)}%`; },
       () => recording.cancelled);
-    if (blob) { download(blob, `${slug()}${boardOnly ? '_board' : ''}${v3.on ? '_3d' : ''}.mp4`); toast(t('rec_done', { ext:'MP4' })); }
+    if (blob) { download(blob, `${videoName(boardOnly, vertical)}.mp4`); toast(t('rec_done', { ext:'MP4' })); }
   } catch (err) { console.error(err); toast(t('rec_failed')); }
   finally { recording = null; $('rec').hidden = true; applyI18n(); }
 }
 /* fallback (no WebCodecs): real-time MediaRecorder capture — playable, but players may not show the length or seek */
-async function exportVideoRecorder(boardOnly){
+function paintVideo(c, fr, idx, boardOnly, vertical){
+  if (vertical) { if (boardOnly) drawBoardOnlyV(c, fr); else drawCardV(c, fr, idx); }
+  else if (boardOnly) drawBoardOnly(c, fr); else drawCard(c, fr, idx);
+}
+const videoName = (boardOnly, vertical) => `${slug()}${vertical ? '_vertical' : ''}${boardOnly ? '_board' : ''}${v3.on ? '_3d' : ''}`;
+async function exportVideoRecorder(boardOnly, vertical){
   if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return toast(t('rec_unsupported'));
   const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
   const mime = types.find(m => MediaRecorder.isTypeSupported(m)); if (!mime) return toast(t('rec_unsupported'));
   const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
-  const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH; const c = cv.getContext('2d');
-  const paint = (fr, idx) => boardOnly ? drawBoardOnly(c, fr) : drawCard(c, fr, idx);
+  const cv = document.createElement('canvas'); cv.width = vertical ? VW : CW; cv.height = vertical ? VH : CH; const c = cv.getContext('2d');
+  const paint = (fr, idx) => paintVideo(c, fr, idx, boardOnly, vertical);
   paint(Object.assign(frameOf(doc.scenes[0]), { flip:isFlipped(doc.scenes[0]) }), 0);
   const stream = cv.captureStream(30); const rec = new MediaRecorder(stream, { mimeType:mime, videoBitsPerSecond:10_000_000 }); const chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   recording = { rec, cancelled:false }; $('rec').hidden = false;
-  rec.onstop = () => { const cancelled = recording && recording.cancelled; recording = null; $('rec').hidden = true; if (!cancelled) { download(new Blob(chunks, { type:mime.split(';')[0] }), `${slug()}${boardOnly ? '_board' : ''}${v3.on ? '_3d' : ''}.${ext}`); toast(t('rec_done', { ext:ext.toUpperCase() })); } };
+  rec.onstop = () => { const cancelled = recording && recording.cancelled; recording = null; $('rec').hidden = true; if (!cancelled) { download(new Blob(chunks, { type:mime.split(';')[0] }), `${videoName(boardOnly, vertical)}.${ext}`); toast(t('rec_done', { ext:ext.toUpperCase() })); } };
   rec.start(250);
   const tm = timing(); const t0 = performance.now(); let lastDraw = 0;
   const tick = now => {

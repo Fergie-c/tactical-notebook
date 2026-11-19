@@ -86,6 +86,7 @@ const t = (k, vars) => { let s = (I18N[lang] && I18N[lang][k]) ?? I18N.ko[k] ?? 
 
 /* ---------- 2026-11-16 추가분: 트래커 불러오기, 경기 CSV, 3D 보기 ---------- */
 Object.assign(I18N.ko, {
+  exp_v_head:'세로 9:16 · 릴스·쇼츠', exp_video_v:'세로 영상 (메모 포함)', exp_video_v_board:'세로 영상 (보드만)', exp_png_v:'세로 PNG — 현재 장면 (메모 포함)', exp_png_v_board:'세로 PNG — 현재 장면 (보드만)', exp_doc_head:'문서·파일',
   exp_video_board:'보드만 영상 저장 (메모 없이 꽉 찬 화면)', v3_switch:'2D = 편집 · 3D = 입체로 보기·녹화 (단축키 3)', v3_bar:'3D 보기 · 드래그 = 회전, 휠 = 확대, 더블클릭 = 기본 각도', v3_reset:'기본 각도', v3_top:'위에서', v3_goal:'골대 뒤',
   v3_hint:'3D 보기 · 편집은 2D에서 (3 키로 전환) · 내보내기는 지금 보이는 3D 그대로', v3_unsupported:'이 브라우저에서 3D(WebGL)를 쓸 수 없어요. 크롬·엣지 최신 버전에서 열어 주세요.',
   csv_match_template:'경기 양식 받기 (두 팀)', csv_match_done:'경기 명단 불러옴 · {h} {hn}명 / {a} {an}명', csv_teams3:"'팀' 칸에 팀이 {n}개 있어요. 한 파일에는 두 팀만 넣어 주세요.",
@@ -97,6 +98,7 @@ Object.assign(I18N.ko, {
   trk_empty:'board.json에 선수 위치가 없어요. export_board.py 결과가 맞는지 확인해 주세요.', trk_nothing:'가져올 선수가 없어요. 자리에 등번호를 골라 주세요.', trk_done:'트래커 장면 {n}개를 가져왔어요 · Ctrl+Z로 되돌리기', trk_scene_title:'트래커 {label}',
 });
 Object.assign(I18N.en, {
+  exp_v_head:'Vertical 9:16 · Reels/Shorts', exp_video_v:'Vertical video (with notes)', exp_video_v_board:'Vertical video (board only)', exp_png_v:'Vertical PNG — current scene (with notes)', exp_png_v_board:'Vertical PNG — current scene (board only)', exp_doc_head:'Documents & files',
   exp_video_board:'Save board-only video (full frame, no notes)', v3_switch:'2D = edit · 3D = view & record (shortcut 3)', v3_bar:'3D view · drag = rotate, wheel = zoom, double-click = default angle', v3_reset:'Default', v3_top:'Top', v3_goal:'Behind goal',
   v3_hint:'3D view · edit in 2D (press 3 to switch) · exports use the 3D view as shown', v3_unsupported:'3D (WebGL) is not available in this browser. Use a recent Chrome or Edge.',
   csv_match_template:'Match template (both teams)', csv_match_done:'Match squads loaded · {h} {hn} / {a} {an}', csv_teams3:"The 'team' column has {n} teams. Put only two teams in one file.",

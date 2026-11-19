@@ -4,7 +4,8 @@
    원리
    - 바닥: 2D와 똑같은 drawPitch()·drawShape()로 캔버스 한 장에 잔디·라인·화살표·구역·연결선을 그려 바닥 텍스처로 쓴다.
      → 잔디 줄 개수·바둑판·색 반전·후반 회전 같은 2D 설정이 3D에 그대로 따라온다(따로 구현하지 않음).
-   - 선수: 얇은 원기둥(윗면 = 유니폼 무늬) + 번호는 항상 카메라를 보는 스프라이트(빌보드) + 그림자.
+   - 선수: 단순 마네킹(added 2026-11-20) — 바닥 원판 + 반바지(다리) + 유니폼 몸통(무늬) + 어깨 + 머리(팀 색).
+     위에서 보면 2D처럼 '번호가 있는 원(머리)'이 보이고 어깨가 양옆으로 나온다. 번호는 머리 앞에 뜬 빌보드.
    - 좌표: 피치 (x, y) m → 세계 (x - 52.5, 높이, y - 34). 기본 카메라는 아래쪽 터치라인 쪽에서 내려다봐서 2D와 좌우·위아래가 같다.
    - 같은 프레임(fr)을 받으므로 재생(모핑)·PNG 카드·영상에서 2D와 같은 타이밍으로 움직인다. */
 'use strict';
@@ -16,9 +17,10 @@ const V3_LOOK = {
   sun: 0.95,               // 임시: 그림자를 만드는 주 조명 세기
   sunPos: [-30, 95, 55],   // 임시: 조명 위치(세계 좌표)
   shadow: 0.38,            // 임시: 그림자 진하기(0~1)
-  tokenH: 1.2,             // 임시: 선수 원판 두께(m)
+  // 마네킹 비율 — 전부 선수 원 반지름(R = 1.7m × 선수 원 크기)에 대한 배수. 임시값
+  fig: { base:.05, baseR:.6, legH:.55, legR:.4, torsoH:.72, torsoTop:.82, torsoBot:.56, depth:.6, shoulderH:.22, headR:.5 },
   tokenRough: 0.42,        // 임시: 원판 광택(0 = 번쩍, 1 = 무광)
-  sideDarken: 0.72,        // 임시: 원판 옆면을 팀 색보다 얼마나 어둡게
+  shade: 0.78,             // 임시: 반바지·바닥 원판을 팀 색보다 얼마나 어둡게(반바지는 보조색이 있으면 보조색)
   fov: 30,                 // 임시: 화각(작을수록 원근이 약해져 2.5D 느낌)
   el: 60,                  // 기본 내려다보는 각도(도). 90 = 완전 탑다운
 };
@@ -46,15 +48,16 @@ function v3Init(){
   const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(VIEWS.full.w, VIEWS.full.h), new THREE.ShadowMaterial({ opacity:V3_LOOK.shadow }));   // 그림자만 받는 투명한 면
   shadowPlane.rotation.x = -Math.PI / 2; shadowPlane.position.y = 0.02; shadowPlane.receiveShadow = true; scene3.add(shadowPlane);
   Object.assign(v3, { ok:true, renderer, scene3, camera, gcv, gctx:gcv.getContext('2d'), gtex, tokens:new Map(), texts:new Map(), ball:null, texCache:new Map(), w:0, h:0,
-    geoBody:new THREE.CylinderGeometry(1, 1, 1, 56), geoBall:new THREE.SphereGeometry(0.95, 28, 20) });
+    geoCyl:new THREE.CylinderGeometry(1, 1, 1, 40), geoTorso:new THREE.CylinderGeometry(V3_LOOK.fig.torsoTop / V3_LOOK.fig.torsoBot, 1, 1, 40, 1, true),
+    geoSph:new THREE.SphereGeometry(1, 32, 22), geoHalf:new THREE.SphereGeometry(1, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), geoBall:new THREE.SphereGeometry(0.95, 28, 20) });
   return true;
 }
 
 /* ---------- 텍스처 ---------- */
 function v3Canvas(w, h){ const cv = document.createElement('canvas'); cv.width = w; cv.height = h; return cv; }
 function v3Tex(cv){ const tx = new THREE.CanvasTexture(cv); tx.anisotropy = 4; return tx; }
-function v3TopTex(tm, isGK){   // 원판 윗면: 2D 토큰과 같은 유니폼 무늬 + 테두리
-  const cv = v3Canvas(256, 256); drawToken(cv.getContext('2d'), 128, 128, 119, tm, isGK, '', 0); return v3Tex(cv);
+function v3ShirtTex(tm, isGK){   // 몸통 옆면: 2D 토큰과 같은 유니폼 무늬를 사각형으로(원보다 크게 그려 가운데만 씀)
+  const cv = v3Canvas(256, 256), c = cv.getContext('2d'); kitFill(c, 128, 128, 200, tm, isGK); const tx = v3Tex(cv); tx.wrapS = THREE.RepeatWrapping; tx.repeat.set(2, 1); return tx;
 }
 function v3NumTex(tm, isGK, txt){   // 번호(또는 포지션 글자): 빌보드 스프라이트용
   const cv = v3Canvas(256, 256), c = cv.getContext('2d'), st = numStyle(tm, isGK), s = String(txt);
@@ -94,27 +97,43 @@ function v3PaintGround(fr, flip){
 
 /* ---------- 선수·공·글자 ---------- */
 function v3MakeToken(){
-  const side = new THREE.MeshStandardMaterial({ roughness:V3_LOOK.tokenRough, metalness:.05, transparent:true });
-  const top = new THREE.MeshStandardMaterial({ roughness:V3_LOOK.tokenRough, metalness:.05, transparent:true });
-  const body = new THREE.Mesh(v3.geoBody, [side, top, side]); body.castShadow = true; body.rotation.y = Math.PI / 2;   // 윗면 무늬가 화면 기준으로 똑바로 서게
-  const num = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false }));
+  const mat = () => new THREE.MeshStandardMaterial({ roughness:V3_LOOK.tokenRough, metalness:.04, transparent:true });
+  const m = { base:mat(), legs:mat(), shirt:mat(), head:mat() };
+  const part = (geo, mt) => { const o = new THREE.Mesh(geo, mt); o.castShadow = true; return o; };
+  const base = part(v3.geoCyl, m.base), legs = part(v3.geoCyl, m.legs), torso = part(v3.geoTorso, m.shirt), shoulders = part(v3.geoHalf, m.shirt), head = part(v3.geoSph, m.head);
+  base.castShadow = false; torso.material.side = THREE.DoubleSide;
+  const num = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false, depthTest:false }));   // 번호는 항상 머리 위에 보이게
   const tag = new THREE.Sprite(new THREE.SpriteMaterial({ transparent:true, depthWrite:false })); tag.visible = false;
-  const g = new THREE.Group(); g.add(body, num, tag); v3.scene3.add(g);
-  return { g, body, side, top, num, tag, sig:'', tagSig:'' };
+  num.renderOrder = 10;
+  const g = new THREE.Group(); g.add(base, legs, torso, shoulders, head, num, tag); v3.scene3.add(g);
+  return { g, m, base, legs, torso, shoulders, head, num, tag, sig:'', tagSig:'' };
+}
+/* 몸 크기·위치: 어깨는 좌우(z)로 넓고 앞뒤(x)로 얇은 타원. 위에서 보면 머리 원 + 양옆 어깨 */
+function v3Shape(o, R){
+  const F = V3_LOOK.fig, d = F.depth; let y = 0;
+  o.base.scale.set(R * F.baseR, R * F.base, R * F.baseR); o.base.position.y = R * F.base / 2; y = R * F.base;
+  o.legs.scale.set(R * F.legR * d * 1.25, R * F.legH, R * F.legR * 1.6); o.legs.position.y = y + R * F.legH / 2; y += R * F.legH;
+  o.torso.scale.set(R * F.torsoBot * d, R * F.torsoH, R * F.torsoBot); o.torso.position.y = y + R * F.torsoH / 2; y += R * F.torsoH;
+  o.shoulders.scale.set(R * F.torsoTop * d, R * F.shoulderH, R * F.torsoTop); o.shoulders.position.y = y;
+  const hr = R * F.headR; o.head.scale.set(hr, hr, hr); o.head.position.y = y + R * F.shoulderH * .55 + hr * .92;
+  o.headY = o.head.position.y; o.headR = hr; o.H = o.headY + hr;
 }
 function v3SyncPieces(fr, flip){
-  const seen = new Set(), ts = tokScale(), R = R_TOKEN * ts, H = V3_LOOK.tokenH * ts, mode = doc.labelMode;
+  const seen = new Set(), ts = tokScale(), R = R_TOKEN * ts, mode = doc.labelMode;
   for (const p of fr.pieces) {
     if (p.alpha <= .01) continue; seen.add(p.key);
     let o = v3.tokens.get(p.key); if (!o) { o = v3MakeToken(); v3.tokens.set(p.key, o); }
     const tm = doc.teams[p.team], isGK = p.pos === 'GK', role = p.role || p.pos, inDisc = mode === 'pos' ? role : p.num;
     const sig = v3KitKey(tm, isGK) + '#' + inDisc + '#' + ts;
     if (o.sig !== sig) {
-      o.sig = sig;
-      o.top.map = v3Cached('top:' + v3KitKey(tm, isGK), () => v3TopTex(tm, isGK)); o.top.needsUpdate = true;
-      o.side.color.set((isGK && tm.kit.gk) ? tm.kit.gk : tm.color).multiplyScalar(V3_LOOK.sideDarken);
+      o.sig = sig; const main = (isGK && tm.kit.gk) ? tm.kit.gk : tm.color;
+      const solid = !isGK && tm.kit.pattern !== 'solid' ? null : main;   // 무늬 유니폼이면 몸통에 무늬, 아니면 단색
+      o.m.shirt.map = solid ? null : v3Cached('shirt:' + v3KitKey(tm, isGK), () => v3ShirtTex(tm, isGK)); o.m.shirt.color.set(solid ? main : '#ffffff'); o.m.shirt.needsUpdate = true;
+      o.m.head.color.set(main);
+      o.m.legs.color.set(isGK ? main : (tm.kit.c2 || main)).multiplyScalar(V3_LOOK.shade);
+      o.m.base.color.set(main).multiplyScalar(V3_LOOK.shade);
       o.num.material.map = v3Cached('num:' + v3KitKey(tm, isGK) + ':' + inDisc, () => v3NumTex(tm, isGK, inDisc)); o.num.material.needsUpdate = true;
-      o.body.scale.set(R, H, R); o.body.position.y = H / 2; o.num.scale.set(R * 2.05, R * 2.05, 1);
+      v3Shape(o, R); const ns = o.headR * 2.8; o.num.scale.set(ns, ns, 1);
     }
     const tagText = doc.showNames ? (mode === 'numpos' ? [role, p.name].filter(Boolean).join(' ') : p.name) : '';
     if (o.tagSig !== tagText + '#' + ts) {
@@ -122,9 +141,10 @@ function v3SyncPieces(fr, flip){
       if (tagText) { const L = v3Cached('tag:' + tagText, () => v3LabelTex(tagText, '#ffffff', 'rgba(8,14,10,.62)', 600)); o.tag.material.map = L.tex; o.tag.material.needsUpdate = true; o.tag.scale.set(1.5 * ts * L.aspect, 1.5 * ts, 1); }
     }
     o.g.position.set((flip ? 105 - p.x : p.x) - 52.5, 0, (flip ? 68 - p.y : p.y) - 34);
-    o.side.opacity = o.top.opacity = o.num.material.opacity = o.tag.material.opacity = p.alpha; o.body.castShadow = p.alpha > .5; o.R = R; o.H = H;
+    for (const k in o.m) o.m[k].opacity = p.alpha; o.num.material.opacity = o.tag.material.opacity = p.alpha;
+    for (const part of [o.legs, o.torso, o.shoulders, o.head]) part.castShadow = p.alpha > .5; o.R = R;
   }
-  for (const [k, o] of v3.tokens) if (!seen.has(k)) { v3.scene3.remove(o.g); o.side.dispose(); o.top.dispose(); o.num.material.dispose(); o.tag.material.dispose(); v3.tokens.delete(k); }
+  for (const [k, o] of v3.tokens) if (!seen.has(k)) { v3.scene3.remove(o.g); for (const m in o.m) o.m[m].dispose(); o.num.material.dispose(); o.tag.material.dispose(); v3.tokens.delete(k); }
   // 공
   if (fr.ball && fr.ball.alpha > .01) {
     if (!v3.ball) { v3.ball = new THREE.Mesh(v3.geoBall, new THREE.MeshStandardMaterial({ map:v3BallTex(), roughness:.5, transparent:true })); v3.ball.castShadow = true; v3.scene3.add(v3.ball); }
@@ -146,7 +166,7 @@ function v3SyncPieces(fr, flip){
 /* 보이는 범위(전체/왼쪽 절반/오른쪽 절반)가 화면에 꽉 차도록 거리를 자동으로 맞추고, 사용자의 확대(zoom)를 곱한다 */
 function v3PlaceCamera(aspect){
   const cam = v3.camera, cfg = v3Cam(), v = VIEWS[doc.view];
-  const tx = v.x0 + v.w / 2 - 52.5, tz = v.y0 + v.h / 2 - 34, az = cfg.az * Math.PI / 180, el = cfg.el * Math.PI / 180;
+  const tx = v.x0 + v.w / 2 - 52.5, tz = v.y0 + v.h / 2 - 34, az = (cfg.az + (v3.azOff || 0)) * Math.PI / 180, el = cfg.el * Math.PI / 180;
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
   cam.aspect = aspect; cam.fov = V3_LOOK.fov; cam.up.set(0, 1, 0); if (cfg.el > 89.4) cam.up.set(-Math.sin(az), 0, -Math.cos(az));   // 완전 탑다운에서 위쪽 방향 고정
   const target = new THREE.Vector3(tx, 0, tz), corners = [[v.x0, v.y0], [v.x0 + v.w, v.y0], [v.x0, v.y0 + v.h], [v.x0 + v.w, v.y0 + v.h]].map(([x, y]) => new THREE.Vector3(x - 52.5, 0, y - 34));
@@ -157,8 +177,8 @@ function v3PlaceCamera(aspect){
   const down = new THREE.Vector3(dir.x, 0, dir.z); if (down.lengthSq() < 1e-6) down.set(-cam.up.x, 0, -cam.up.z); down.normalize();
   const wp = new THREE.Vector3();
   for (const o of v3.tokens.values()) {
-    wp.set(o.g.position.x, o.H + .03, o.g.position.z); const toCam = cam.position.clone().sub(wp).normalize();
-    o.num.position.copy(toCam).multiplyScalar(o.R * 1.15).add(new THREE.Vector3(0, o.H + .03, 0));
+    wp.set(o.g.position.x, o.headY, o.g.position.z); const toCam = cam.position.clone().sub(wp).normalize();
+    o.num.position.copy(toCam).multiplyScalar(o.headR * 1.05).add(new THREE.Vector3(0, o.headY, 0));   // 머리 앞(카메라 쪽) 표면에 번호
     o.tag.position.copy(down).multiplyScalar(o.R + 1.25 * tokScale()).add(new THREE.Vector3(0, .55, 0));
   }
 }
@@ -178,7 +198,8 @@ function v3Render(fr, flip){
   v3RenderAt(fr, flip, w, h, Math.min(window.devicePixelRatio || 1, 2));
 }
 /* 내보내기용: 정해진 크기로 한 장 그려서 그 캔버스를 돌려준다(바로 drawImage 할 것). 화면 크기는 다음 draw() 때 되돌아온다 */
-function v3Image(fr, flip, w, h){ v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); return v3.renderer.domElement; }
+function v3Image(fr, flip, w, h, azOff){   // azOff: 세로 내보내기는 -90(골대 뒤에서 봐서 홈이 위로 공격)
+  v3.azOff = azOff || 0; try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azOff = 0; } return v3.renderer.domElement; }
 
 /* ---------- 켜기/끄기·조작 ---------- */
 function setView3d(on){

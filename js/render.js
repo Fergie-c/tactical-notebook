@@ -13,6 +13,8 @@ function makeT(viewKey, dest, flip){
   return { s, flip:true, base, clip:base.clip, X: m => base.X(105 - m), Y: m => base.Y(68 - m), inv: (px,py) => { const p = base.inv(px, py); return { x:105 - p.x, y:68 - p.y }; } };
 }
 const isFlipped = sc => !!sc && sc.half === 2;
+/* 세로 내보내기(added 2026-11-20): 캔버스를 통째로 돌려서 그릴 때(T.rot) 선수·번호·글자는 다시 세워서 바로 보이게 한다 */
+function upright(c, T, x, y){ if (!T.rot) return; c.translate(x, y); c.rotate(-T.rot); c.translate(-x, -y); }
 function resize(){
   const r = wrap.getBoundingClientRect(); DPR = window.devicePixelRatio || 1;
   W = r.width; H = r.height; canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
@@ -131,6 +133,7 @@ function drawShape(c, sh, T, alpha, selected, measure, pos){
     c.globalAlpha = alpha; c.strokeStyle = col; c.lineWidth = Math.max(1, .18*s*wMul(sh)); c.setLineDash([.8*s, .5*s]); c.stroke(); c.setLineDash([]);
     if (selected) { path(.5*s); c.strokeStyle = '#ffffff'; c.lineWidth = Math.max(1, .1*s); c.stroke(); }
   } else if (sh.type === 'text') {
+    c.save(); upright(c, T, X(sh.x1), Y(sh.y1));
     const fs = 1.75*s*({ 1:.8, 3:1.3 }[sh.w] || 1); c.font = `600 ${fs}px ${getCss('--f-body')}`; c.textBaseline = 'middle';
     const tw = c.measureText(sh.text).width, pad = .5*s, bh = fs*1.45;
     const bx = X(sh.x1) - tw/2 - pad, by = Y(sh.y1) - bh/2;
@@ -139,6 +142,7 @@ function drawShape(c, sh, T, alpha, selected, measure, pos){
     if (selected) { c.strokeStyle = '#ffd84a'; c.lineWidth = Math.max(1.5, .15*s); c.stroke(); }
     c.fillStyle = col; c.textAlign = 'center'; c.fillText(sh.text, X(sh.x1), Y(sh.y1) + fs*.04);
     if (measure) textBoxes.set(sh.id, { x: sh.x1 - (tw/2 + pad)/s, y: sh.y1 - bh/2/s, w: (tw + pad*2)/s, h: bh/s });
+    c.restore();
   } else {
     if (selected) { c.strokeStyle = 'rgba(255,255,255,.55)'; c.lineWidth = .75*s*Math.max(1, wMul(sh)); c.lineCap = 'round'; c.beginPath(); const g = sh.type === 'loft' && loftGeom(sh, T);
       if (g) { c.moveTo(g.x1, g.y1); c.quadraticCurveTo(g.cx, g.cy, g.x2, g.y2); } else { c.moveTo(X(sh.x1), Y(sh.y1)); c.lineTo(X(sh.x2), Y(sh.y2)); } c.stroke(); }
@@ -196,7 +200,7 @@ function drawToken(c, x, y, r, tm, isGK, num, fontPx){
 function drawPiece(c, T, p, showNames, selected){
   // every size below is token-relative, so scaling s scales disc, number and name tag together
   const {X, Y} = T, s = T.s * tokScale(); const tm = doc.teams[p.team]; const x = X(p.x), y = Y(p.y);
-  c.save(); c.globalAlpha = p.alpha;
+  c.save(); c.globalAlpha = p.alpha; upright(c, T, x, y);
   if (selected) { c.beginPath(); c.arc(x, y, (R_TOKEN + .65)*s, 0, Math.PI*2); c.strokeStyle = '#ffd84a'; c.lineWidth = Math.max(2, .32*s); c.stroke(); }
   c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = .6*s; c.shadowOffsetY = .15*s;
   c.beginPath(); c.arc(x, y, R_TOKEN*s, 0, Math.PI*2); c.fillStyle = '#000'; c.fill(); c.restore();
@@ -215,7 +219,7 @@ function drawPiece(c, T, p, showNames, selected){
 }
 function drawBall(c, T, b, selected){
   const {X, Y, s} = T; const x = X(b.x), y = Y(b.y);
-  c.save(); c.globalAlpha = b.alpha;
+  c.save(); c.globalAlpha = b.alpha; upright(c, T, x, y);
   if (selected) { c.beginPath(); c.arc(x, y, 1.6*s, 0, Math.PI*2); c.strokeStyle = '#ffd84a'; c.lineWidth = Math.max(2, .3*s); c.stroke(); }
   // football: shaded white sphere, black centre pentagon, seams to five partial pentagons on the rim
   const r = .95*s, TAU = Math.PI*2, up = -Math.PI/2;
@@ -279,6 +283,7 @@ function renderFrame(c, T, fr, opts){
   if (fr.ball && fr.ball.alpha > .01) drawBall(c, T, fr.ball, opts.sel && opts.sel.has('ball'));
   for (const {sh, alpha} of fr.shapes) if (alpha > .01 && sh.type === 'text') drawShape(c, sh, T, alpha, (opts.selShapes && opts.selShapes.has(sh.id)), opts.measure);
   // brand mark on the touchlines (screen-fixed): top-left sits just above the top line, bottom-right just below the bottom line
+  if (opts.noMark) { c.restore(); return; }   // 세로 내보내기는 워터마크를 따로(세워서) 그림
   const B = T.base, bf = Math.max(11, 1.5*B.s), gap = .35*B.s; c.save(); c.font = `700 ${bf}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(bf*.08).toFixed(1)}px`;
   c.fillStyle = 'rgba(255,255,255,.55)';
   const left = Math.max(B.X(0), B.clip.x + gap), right = Math.min(B.X(105), B.clip.x + B.clip.w - gap);   // half views: keep inside the visible area
