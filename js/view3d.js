@@ -110,20 +110,23 @@ function v3BuildStadium(scene3){
    v3PlaceCamera가 피치 네 모서리를 화면에 투영해 v3.marks(0~1 비율)에 저장 → 화면은 #v3MarkTL/BR 위치만 옮기고, 내보내기는 v3DrawMarks로 그린다 */
 function v3MarkAnchors(){
   const pts = [[0, 0], [105, 0], [0, 68], [105, 68]].map(([x, y]) => { const q = new THREE.Vector3(x - 52.5, 0, y - 34).project(v3.camera); return [(q.x + 1) / 2, (1 - q.y) / 2]; });
-  const byY = pts.slice().sort((a, b) => a[1] - b[1]), top = byY.slice(0, 2).sort((a, b) => a[0] - b[0]), bot = byY.slice(2).sort((a, b) => b[0] - a[0]);
-  v3.marks = { tl:top[0], br:bot[0] };
+  // 화면에 비친 피치를 감싸는 사각형의 왼쪽 위·오른쪽 아래. 모서리를 그대로 쓰면 대각선으로 돌렸을 때 글자가 피치 꼭짓점에 걸쳐 어긋남(2026-11-20 수정)
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  v3.marks = { tl:[Math.min(...xs), Math.min(...ys)], br:[Math.max(...xs), Math.max(...ys)] };
 }
 function v3DrawMarks(c, x, y, w, h){
   if (!v3.marks) return; const fs = Math.max(12, Math.round(Math.min(w, h) * .02)), gap = fs * .55;
   c.save(); c.font = `700 ${fs}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(fs * .1).toFixed(1)}px`; c.fillStyle = 'rgba(255,255,255,.6)';
-  c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, x + v3.marks.tl[0] * w, y + v3.marks.tl[1] * h - gap);
-  c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, x + v3.marks.br[0] * w, y + v3.marks.br[1] * h + gap);
+  const tw = c.measureText(BRAND).width, cl = (v, a, b) => Math.max(a, Math.min(b, v)), m = fs * .6;   // 화면 밖으로 안 나가게
+  c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, x + cl(v3.marks.tl[0] * w, m, w - tw - m), y + cl(v3.marks.tl[1] * h - gap, fs + m, h - m));
+  c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, x + cl(v3.marks.br[0] * w, tw + m, w - m), y + cl(v3.marks.br[1] * h + gap, m, h - fs - m));
   c.restore();
 }
 function v3PlaceMarksOnScreen(){
   const tl = $('v3MarkTL'), br = $('v3MarkBR'); if (!tl || !v3.marks) return;
-  tl.style.left = (v3.marks.tl[0] * 100) + '%'; tl.style.top = (v3.marks.tl[1] * 100) + '%';
-  br.style.left = (v3.marks.br[0] * 100) + '%'; br.style.top = (v3.marks.br[1] * 100) + '%';
+  const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+  tl.style.left = cl(v3.marks.tl[0] * 100, 1, 80) + '%'; tl.style.top = cl(v3.marks.tl[1] * 100, 5, 98) + '%';
+  br.style.left = cl(v3.marks.br[0] * 100, 20, 99) + '%'; br.style.top = cl(v3.marks.br[1] * 100, 2, 94) + '%';
 }
 
 /* ---------- 텍스처 ---------- */
@@ -241,7 +244,7 @@ function v3PlaceCamera(aspect){
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
   cam.aspect = aspect; cam.fov = V3_LOOK.fov; cam.up.set(0, 1, 0); if (Math.max(cfg.el, v3.elMin || 0) > 89.4) cam.up.set(-Math.sin(az), 0, -Math.cos(az));   // 완전 탑다운에서 위쪽 방향 고정
   const target = new THREE.Vector3(tx, 0, tz), corners = [[v.x0, v.y0], [v.x0 + v.w, v.y0], [v.x0, v.y0 + v.h], [v.x0 + v.w, v.y0 + v.h]].map(([x, y]) => new THREE.Vector3(x - 52.5, 0, y - 34));
-  const fits = d => { cam.position.copy(target).addScaledVector(dir, d); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); return corners.every(c => { const q = c.clone().project(cam); return Math.abs(q.x) <= .985 && Math.abs(q.y) <= .985; }); };
+  const fits = d => { cam.position.copy(target).addScaledVector(dir, d); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); const lim = v3.fitPad || .985; return corners.every(c => { const q = c.clone().project(cam); return Math.abs(q.x) <= lim && Math.abs(q.y) <= lim; }); };
   let lo = 20, hi = 900; for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
   cam.position.copy(target).addScaledVector(dir, hi / cfg.zoom); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
   v3MarkAnchors();
@@ -272,9 +275,10 @@ function v3Render(fr, flip){
 /* 내보내기용: 정해진 크기로 한 장 그려서 그 캔버스를 돌려준다(바로 drawImage 할 것). 화면 크기는 다음 draw() 때 되돌아온다 */
 /* azFix: 좌우 각도를 이 값(도)으로 고정. 세로 내보내기는 -90 = 왼쪽 골대 뒤에서 봄 → 홈이 위로 공격하는 세로 피치.
    화면에서 돌려 둔 각도(골대 뒤 버튼 등)와 상관없이 항상 세로로 나오게 한다(2026-11-20 버그: 각도를 더해서 가로로 나왔음). 내려다보는 각도·확대는 화면 설정을 따름 */
-function v3Image(fr, flip, w, h, azFix){   // 세로(azFix 있음)는 너무 비스듬하면 피치가 납작하고 작아져서 최소 70°로 내려다봄
-  v3.azFix = azFix == null ? null : azFix; v3.elMin = azFix == null ? 0 : 70;
-  try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azFix = null; v3.elMin = 0; } return v3.renderer.domElement; }
+/* fitPad: 피치(여백 포함)가 화면의 몇 %까지 차게 할지(1 = 끝까지). 세로는 레퍼런스처럼 관중석까지 보이게 여유를 둔다(2026-11-20 사용자 요청: 구장이 잘림) */
+function v3Image(fr, flip, w, h, azFix, fitPad){   // 세로(azFix 있음)는 너무 비스듬하면 피치가 납작하고 작아져서 최소 70°로 내려다봄
+  v3.azFix = azFix == null ? null : azFix; v3.elMin = azFix == null ? 0 : 70; v3.fitPad = fitPad || 0;
+  try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azFix = null; v3.elMin = 0; v3.fitPad = 0; } return v3.renderer.domElement; }
 
 /* ---------- 켜기/끄기·조작 ---------- */
 function setView3d(on){

@@ -86,15 +86,6 @@ const t = (k, vars) => { let s = (I18N[lang] && I18N[lang][k]) ?? I18N.ko[k] ?? 
 
 /* ---------- 2026-11-16 추가분: 트래커 불러오기, 경기 CSV, 3D 보기 ---------- */
 Object.assign(I18N.ko, {
-  lai_open:'사진으로 명단 (AI)', lai_title:'사진으로 명단 만들기 (AI)', lai_intro:'라인업 캡처(FotMob·네이버·구단 SNS 등)를 넣으면 AI(Google Gemini)가 읽어서 경기 CSV와 같은 양식의 명단으로 만들어요. 결과는 표에서 고친 뒤 적용하세요.',
-  lai_key:'내 Gemini API 키', lai_show:'보기', lai_forget:'지우기', lai_remember:'이 브라우저에 기억', lai_key_note:'무료 키 받기:', lai_privacy:'키는 이 브라우저에만 저장되고, 사진은 Google로 전송돼요. 무료 사용분은 Google이 입력을 서비스 개선에 쓸 수 있어요.',
-  lai_model:'모델', lai_model_note:'한도 초과·모델 없음 오류가 나면 목록의 다른 모델로 바꿔 보세요.', lai_pick:'사진 고르기', lai_paste_hint:'또는 끌어다 놓기 · Ctrl+V (최대 4장)', lai_drop:'라인업 캡처를 여기에', lai_run:'명단 뽑기', lai_working:'읽는 중…',
-  lai_alt:'AI 키 없이 하기', lai_alt_note:"① 명령문 복사 → ② 아무 AI 채팅(Claude, ChatGPT, Gemini 앱)에 캡처와 함께 붙여넣기 → ③ 받은 답(JSON 또는 CSV)을 아래 칸에 붙여넣고 '표로 읽기'.", lai_copy:'명령문 복사', lai_read:'표로 읽기',
-  lai_add:'+ 줄 추가', lai_save:'경기 CSV로 저장', lai_apply:'명단에 적용', lai_apply_note:'팀이 둘이면 먼저 나온 팀 = 홈, 두 팀 명단을 모두 바꿔요(Ctrl+Z로 되돌리기). 빨간 줄(등번호 없음)은 빠져요.',
-  lai_c_team:'팀', lai_c_pos:'포지션', lai_c_role:'세부', lai_c_status:'구분', lai_c_en:'영문명', lai_starter:'선발', lai_sub:'교체', lai_forms:'포메이션(참고): {f}', lai_form_unknown:'앱 목록에 없음',
-  lai_need_key:'Gemini API 키를 넣어 주세요(무료로 받을 수 있어요).', lai_need_img:'라인업 사진을 넣어 주세요.', lai_bad_img:'이 사진은 읽을 수 없어요.', lai_done:'{n}명을 읽었어요. 틀린 곳을 고친 뒤 적용하세요.', lai_none:'선수를 찾지 못했어요. 더 선명한 캡처로 다시 해 보세요.',
-  lai_cancelled:'취소했어요.', lai_err_net:'Google에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.', lai_err_key:'API 키가 맞지 않아요. 키를 다시 확인해 주세요.', lai_err_model:'이 모델 이름을 찾을 수 없어요. 목록의 다른 모델로 바꿔 보세요.',
-  lai_err_quota:'무료 한도를 넘었어요(429). 잠시 뒤 다시 하거나 다른 모델로 바꿔 보세요.', lai_err_other:'오류 {s}: {m}', lai_no_num:'등번호가 있는 줄이 없어요.', lai_forgot:'저장된 키를 지웠어요.', lai_copied:'명령문을 복사했어요.', lai_copy_fail:'복사가 막혀서 아래 칸에 넣어 뒀어요. 직접 복사해 주세요.',
   exp_v_head:'세로 9:16 · 릴스·쇼츠', exp_video_v:'세로 영상 (메모 포함)', exp_video_v_board:'세로 영상 (보드만)', exp_png_v:'세로 PNG — 현재 장면 (메모 포함)', exp_png_v_board:'세로 PNG — 현재 장면 (보드만)', exp_doc_head:'문서·파일',
   exp_video_board:'보드만 영상 저장 (메모 없이 꽉 찬 화면)', v3_switch:'2D = 편집 · 3D = 입체로 보기·녹화 (단축키 3)', v3_bar:'3D 보기 · 드래그 = 회전, 휠 = 확대, 더블클릭 = 기본 각도', v3_reset:'기본 각도', v3_top:'위에서', v3_goal:'골대 뒤',
   v3_hint:'3D 보기 · 편집은 2D에서 (3 키로 전환) · 내보내기는 지금 보이는 3D 그대로', v3_unsupported:'이 브라우저에서 3D(WebGL)를 쓸 수 없어요. 크롬·엣지 최신 버전에서 열어 주세요.',
@@ -107,15 +98,6 @@ Object.assign(I18N.ko, {
   trk_empty:'board.json에 선수 위치가 없어요. export_board.py 결과가 맞는지 확인해 주세요.', trk_nothing:'가져올 선수가 없어요. 자리에 등번호를 골라 주세요.', trk_done:'트래커 장면 {n}개를 가져왔어요 · Ctrl+Z로 되돌리기', trk_scene_title:'트래커 {label}',
 });
 Object.assign(I18N.en, {
-  lai_open:'Squad from photo (AI)', lai_title:'Build squads from a photo (AI)', lai_intro:'Drop lineup screenshots (FotMob, Naver, club posts…) and AI (Google Gemini) reads them into the same format as the match CSV. Fix the table, then apply.',
-  lai_key:'My Gemini API key', lai_show:'Show', lai_forget:'Forget', lai_remember:'Remember in this browser', lai_key_note:'Get a free key:', lai_privacy:'The key stays in this browser only; images are sent to Google. On the free tier Google may use inputs to improve its products.',
-  lai_model:'Model', lai_model_note:'If you get quota or model-not-found errors, try another model from the list.', lai_pick:'Choose images', lai_paste_hint:'or drop · Ctrl+V (up to 4)', lai_drop:'Drop lineup screenshots here', lai_run:'Read squads', lai_working:'Reading…',
-  lai_alt:'Without an AI key', lai_alt_note:"① Copy prompt → ② paste it with the screenshot into any AI chat (Claude, ChatGPT, Gemini app) → ③ paste the answer (JSON or CSV) below and press 'Read as table'.", lai_copy:'Copy prompt', lai_read:'Read as table',
-  lai_add:'+ Add row', lai_save:'Save as match CSV', lai_apply:'Apply to squads', lai_apply_note:'With two teams the first is home and both squads are replaced (Ctrl+Z to undo). Red rows (no number) are skipped.',
-  lai_c_team:'Team', lai_c_pos:'Pos', lai_c_role:'Role', lai_c_status:'Status', lai_c_en:'English', lai_starter:'starter', lai_sub:'sub', lai_forms:'Formation (reference): {f}', lai_form_unknown:'not in app list',
-  lai_need_key:'Enter a Gemini API key (free).', lai_need_img:'Add a lineup image.', lai_bad_img:'This image cannot be read.', lai_done:'Read {n} players. Fix any mistakes, then apply.', lai_none:'No players found. Try a sharper screenshot.',
-  lai_cancelled:'Cancelled.', lai_err_net:'Could not reach Google. Check your connection.', lai_err_key:'The API key is not valid. Check it again.', lai_err_model:'Model not found. Try another model from the list.',
-  lai_err_quota:'Free quota exceeded (429). Try later or another model.', lai_err_other:'Error {s}: {m}', lai_no_num:'No rows with a shirt number.', lai_forgot:'Saved key removed.', lai_copied:'Prompt copied.', lai_copy_fail:'Copy was blocked, so the prompt is in the box below.',
   exp_v_head:'Vertical 9:16 · Reels/Shorts', exp_video_v:'Vertical video (with notes)', exp_video_v_board:'Vertical video (board only)', exp_png_v:'Vertical PNG — current scene (with notes)', exp_png_v_board:'Vertical PNG — current scene (board only)', exp_doc_head:'Documents & files',
   exp_video_board:'Save board-only video (full frame, no notes)', v3_switch:'2D = edit · 3D = view & record (shortcut 3)', v3_bar:'3D view · drag = rotate, wheel = zoom, double-click = default angle', v3_reset:'Default', v3_top:'Top', v3_goal:'Behind goal',
   v3_hint:'3D view · edit in 2D (press 3 to switch) · exports use the 3D view as shown', v3_unsupported:'3D (WebGL) is not available in this browser. Use a recent Chrome or Edge.',

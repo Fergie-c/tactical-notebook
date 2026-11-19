@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="css/app.css?v=20261120b">
+<link rel="stylesheet" href="css/app.css?v=20261120c">
 </head>
 <body>
 
@@ -130,7 +130,6 @@
           <button class="mini" id="csvLoad" style="font-weight:600">⇪ <span data-i18n="csv_load">CSV로 명단 불러오기</span></button>
           <button class="mini" id="csvTemplate" data-i18n="csv_template">양식 받기</button>
           <button class="mini" id="csvMatchTemplate" data-i18n="csv_match_template">경기 양식 받기</button>
-          <button class="mini" id="btnLineupAI" style="font-weight:600">📷 <span data-i18n="lai_open">사진으로 명단 (AI)</span></button>
         </div>
         <p class="note" style="margin:0" data-i18n="csv_note">한 줄에 한 명: 등번호,포지션,이름</p>
       </div>
@@ -230,42 +229,6 @@
   </div>
 </div>
 
-<div class="modal" id="lai" hidden>
-  <div class="card wide" role="dialog" aria-modal="true" aria-labelledby="laiTitle">
-    <div class="row" style="justify-content:space-between;align-items:center"><h2 id="laiTitle" style="margin:0" data-i18n="lai_title">사진으로 명단 만들기 (AI)</h2><button class="mini" id="laiClose">✕</button></div>
-    <p class="note" style="margin:6px 0 12px" data-i18n="lai_intro">라인업 캡처(FotMob·네이버·구단 SNS 등)를 넣으면 AI(Google Gemini)가 읽어서 경기 CSV와 같은 양식의 명단으로 만들어요. 결과는 표에서 고친 뒤 적용하세요.</p>
-    <div class="lai-grid">
-      <div>
-        <div class="field"><label data-i18n="lai_key">내 Gemini API 키</label>
-          <div class="row" style="gap:6px"><input type="password" id="laiKey" autocomplete="off" spellcheck="false" style="flex:1;min-width:0" placeholder="AIza…"><button class="mini" id="laiShowKey" data-i18n="lai_show">보기</button><button class="mini" id="laiForget" data-i18n="lai_forget">지우기</button></div>
-          <label class="check" style="margin-top:6px"><input type="checkbox" id="laiRemember" checked> <span data-i18n="lai_remember">이 브라우저에 기억</span></label>
-          <p class="note" style="margin:6px 0 0"><span data-i18n="lai_key_note">무료 키 받기:</span> <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> · <span data-i18n="lai_privacy">키는 이 브라우저에만 저장되고, 사진은 Google로 전송돼요. 무료 사용분은 Google이 입력을 서비스 개선에 쓸 수 있어요.</span></p>
-        </div>
-        <div class="field"><label data-i18n="lai_model">모델</label><input id="laiModel" list="laiModels" spellcheck="false"><datalist id="laiModels"></datalist>
-          <p class="note" style="margin:4px 0 0" data-i18n="lai_model_note">한도 초과·모델 없음 오류가 나면 목록의 다른 모델로 바꿔 보세요.</p></div>
-        <div class="lai-drop" id="laiDrop" tabindex="0"><div class="lai-imgs" id="laiImgs"></div>
-          <div class="row" style="gap:6px;margin-top:8px"><button class="mini" id="laiPick" data-i18n="lai_pick">사진 고르기</button><span class="note" data-i18n="lai_paste_hint">또는 끌어다 놓기 · Ctrl+V (최대 4장)</span></div></div>
-        <input type="file" id="laiFile" accept="image/*" multiple hidden>
-        <div class="row" style="gap:8px;margin-top:10px;align-items:center"><button class="btn primary" id="laiRunBtn" data-i18n="lai_run">명단 뽑기</button><button class="btn" id="laiCancelRun" hidden data-i18n="cancel">취소</button><span class="note lai-status" id="laiStatus" aria-live="polite"></span></div>
-        <details class="lai-alt"><summary data-i18n="lai_alt">AI 키 없이 하기</summary>
-          <p class="note" data-i18n="lai_alt_note">① 명령문 복사 → ② 아무 AI 채팅(Claude, ChatGPT, Gemini 앱)에 캡처와 함께 붙여넣기 → ③ 받은 답(JSON 또는 CSV)을 아래 칸에 붙여넣고 '표로 읽기'.</p>
-          <div class="row" style="gap:6px"><button class="mini" id="laiCopyPrompt" data-i18n="lai_copy">명령문 복사</button><button class="mini" id="laiPasteBtn" data-i18n="lai_read">표로 읽기</button></div>
-          <textarea id="laiText" rows="4" spellcheck="false" style="width:100%;margin-top:6px"></textarea>
-        </details>
-      </div>
-      <div class="lai-result">
-        <p class="note" id="laiForms" style="margin:0 0 6px"></p>
-        <div class="lai-tablewrap"><table class="trk-table lai-table" id="laiTable"></table></div>
-        <div class="row" style="justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px">
-          <button class="mini" id="laiAddRow" data-i18n="lai_add">+ 줄 추가</button>
-          <div class="row" style="gap:8px"><button class="btn" id="laiSave" data-i18n="lai_save">경기 CSV로 저장</button><button class="btn primary" id="laiApply" data-i18n="lai_apply">명단에 적용</button></div>
-        </div>
-        <p class="note" style="margin:8px 0 0" data-i18n="lai_apply_note">팀이 둘이면 먼저 나온 팀 = 홈, 두 팀 명단을 모두 바꿔요(Ctrl+Z로 되돌리기). 빨간 줄(등번호 없음)은 빠져요.</p>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="modal" id="trk" hidden>
   <div class="card wide" role="dialog" aria-modal="true" aria-labelledby="trkTitle">
     <h2 id="trkTitle" data-i18n="trk_title">트래커 결과 불러오기</h2>
@@ -297,26 +260,25 @@
 </div>
 
 <!-- 스크립트는 이 순서대로 로드해야 함: 뒤 파일이 앞 파일의 상수·함수를 씀. type="module"은 file://에서 막히므로 쓰지 말 것 -->
-<script src="vendor/three.min.js?v=20261120b"></script>
-<script src="js/i18n.js?v=20261120b"></script>
-<script src="js/constants.js?v=20261120b"></script>
-<script src="js/document.js?v=20261120b"></script>
-<script src="js/state.js?v=20261120b"></script>
-<script src="js/render.js?v=20261120b"></script>
-<script src="js/input.js?v=20261120b"></script>
-<script src="js/commands.js?v=20261120b"></script>
-<script src="js/playback.js?v=20261120b"></script>
-<script src="js/mp4.js?v=20261120b"></script>
-<script src="js/export.js?v=20261120b"></script>
-<script src="js/docs.js?v=20261120b"></script>
-<script src="js/ui-panels.js?v=20261120b"></script>
-<script src="js/csv.js?v=20261120b"></script>
-<script src="js/lineup-ai.js?v=20261120b"></script>
-<script src="js/tracker.js?v=20261120b"></script>
-<script src="js/view3d.js?v=20261120b"></script>
-<script src="js/kit.js?v=20261120b"></script>
-<script src="js/app-shell.js?v=20261120b"></script>
-<script src="js/keyboard.js?v=20261120b"></script>
-<script src="js/boot.js?v=20261120b"></script>
+<script src="vendor/three.min.js?v=20261120c"></script>
+<script src="js/i18n.js?v=20261120c"></script>
+<script src="js/constants.js?v=20261120c"></script>
+<script src="js/document.js?v=20261120c"></script>
+<script src="js/state.js?v=20261120c"></script>
+<script src="js/render.js?v=20261120c"></script>
+<script src="js/input.js?v=20261120c"></script>
+<script src="js/commands.js?v=20261120c"></script>
+<script src="js/playback.js?v=20261120c"></script>
+<script src="js/mp4.js?v=20261120c"></script>
+<script src="js/export.js?v=20261120c"></script>
+<script src="js/docs.js?v=20261120c"></script>
+<script src="js/ui-panels.js?v=20261120c"></script>
+<script src="js/csv.js?v=20261120c"></script>
+<script src="js/tracker.js?v=20261120c"></script>
+<script src="js/view3d.js?v=20261120c"></script>
+<script src="js/kit.js?v=20261120c"></script>
+<script src="js/app-shell.js?v=20261120c"></script>
+<script src="js/keyboard.js?v=20261120c"></script>
+<script src="js/boot.js?v=20261120c"></script>
 </body>
 </html>
