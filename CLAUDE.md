@@ -24,6 +24,7 @@
 
 ## 구조 (2026-10-15 사용자 요청으로 기능별 파일 분리)
 - 진입점은 `index.html`(HTML 마크업만). 스타일은 `css/app.css`, 스크립트는 `js/` 19개 파일 + `vendor/three.min.js`(Three.js r128, 3D 보기용 — 외부 라이브러리는 이것 하나만 허용, CDN 금지). 빌드·의존성·서버 없음.
+- **배포할 때마다 `index.html`의 `?v=날짜` 를 모두 새 값으로 바꾼다**(css·js·vendor 전부). GitHub Pages가 파일을 약 10분 캐시해서, 안 바꾸면 새 HTML + 예전 JS가 섞여 열린다(2026-11-20 실제로 확인). 예: `sed -i 's/?v=20261120/?v=20261121/g' index.html`
 - `tactical-notebook.html`은 예전 파일명으로 여는 사람을 `index.html`로 넘기는 안내 파일일 뿐이다.
 - 사용자는 웹 주소로 열거나, html을 더블클릭해 `file://`로 크롬/엣지에서 연다(둘 다 동작해야 함). 그래서 **일반 `<script src>`만** 쓴다. `type="module"`·`fetch`는 `file://`에서 막히므로 금지. 번들러·프레임워크 도입은 사용자에게 먼저 묻는다.
 - 폴더째(`css/`, `js/` 포함) 있어야 동작한다. html만 복사하면 깨진다.
