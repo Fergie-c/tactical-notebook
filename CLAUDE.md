@@ -23,13 +23,13 @@
 - 사용자의 판단이 틀렸거나 더 나은 방법이 있으면 솔직하게 지적한다.
 
 ## 구조 (2026-10-15 사용자 요청으로 기능별 파일 분리)
-- 진입점은 `index.html`(HTML 마크업만). 스타일은 `css/app.css`, 스크립트는 `js/` 19개 파일 + `vendor/three.min.js`(Three.js r128, 3D 보기용 — 외부 라이브러리는 이것 하나만 허용, CDN 금지). 빌드·의존성·서버 없음.
+- 진입점은 `index.html`(HTML 마크업만). 스타일은 `css/app.css`, 스크립트는 `js/` 20개 파일 + `vendor/three.min.js`(Three.js r128, 3D 보기용 — 외부 라이브러리는 이것 하나만 허용, CDN 금지). 빌드·의존성·서버 없음.
 - **배포할 때마다 `index.html`의 `?v=날짜` 를 모두 새 값으로 바꾼다**(css·js·vendor 전부). GitHub Pages가 파일을 약 10분 캐시해서, 안 바꾸면 새 HTML + 예전 JS가 섞여 열린다(2026-11-20 실제로 확인). 예: `sed -i 's/?v=20261120/?v=20261121/g' index.html`
 - `tactical-notebook.html`은 예전 파일명으로 여는 사람을 `index.html`로 넘기는 안내 파일일 뿐이다.
-- 사용자는 웹 주소로 열거나, html을 더블클릭해 `file://`로 크롬/엣지에서 연다(둘 다 동작해야 함). 그래서 **일반 `<script src>`만** 쓴다. `type="module"`·`fetch`는 `file://`에서 막히므로 금지. 번들러·프레임워크 도입은 사용자에게 먼저 묻는다.
+- 사용자는 웹 주소로 열거나, html을 더블클릭해 `file://`로 크롬/엣지에서 연다(둘 다 동작해야 함). 그래서 **일반 `<script src>`만** 쓴다. `type="module"`과 로컬 파일 `fetch`는 `file://`에서 막히므로 금지. 외부 요청은 `js/lineup-ai.js`의 Gemini 호출 하나뿐(사용자 결정, 2026-11-20). 번들러·프레임워크 도입은 사용자에게 먼저 묻는다.
 - 폴더째(`css/`, `js/` 포함) 있어야 동작한다. html만 복사하면 깨진다.
 - 모든 스크립트가 전역 스코프를 공유한다(IIFE 없음, 파일마다 `'use strict'`). 새 전역 이름이 기존 이름과 겹치지 않게 할 것.
-- **로딩 순서가 곧 의존 순서**(html 하단 `<script>` 순서): three(vendor) → i18n → constants → document → state → render → input → commands → playback → mp4 → export → docs → ui-panels → csv → tracker → view3d → kit → app-shell → keyboard → boot.
+- **로딩 순서가 곧 의존 순서**(html 하단 `<script>` 순서): three(vendor) → i18n → constants → document → state → render → input → commands → playback → mp4 → export → docs → ui-panels → csv → lineup-ai → tracker → view3d → kit → app-shell → keyboard → boot.
   - 함수 선언은 파일을 넘어 호이스팅되지 않는다. 파일 최상위에서 *실행되는* 코드(`x.onclick = fn`, 즉시 호출)는 앞 파일이나 같은 파일의 이름만 참조할 것. 함수 *안에서* 참조하는 건 뒤 파일이어도 괜찮다(boot 이후 호출되므로).
   - 화면 그리기를 촉발하는 비동기 시작점(ResizeObserver, 글꼴 로드 대기)은 `boot.js`에 둔다.
 - 외부 리소스는 Google Fonts뿐(오프라인이면 시스템 글꼴로 대체되어도 기능은 동일해야 함).
@@ -46,12 +46,21 @@
 - 바닥은 2D의 `drawPitch()`·`drawShape()`로 그린 캔버스 텍스처다. 잔디·라인·화살표·구역을 3D용으로 따로 그리지 말 것(2D 설정이 자동으로 따라오는 구조).
 - 좌표: 피치 (x, y) → 세계 (x − 52.5, 높이, y − 34). 후반 회전은 2D와 같이 (105−x, 68−y).
 - 내보내기: `v3.on`이면 `drawCard()`의 보드 영역과 `drawBoardOnly()`가 `v3Image()`(정해진 크기로 한 장 렌더)를 쓴다.
+- 배경은 스타디움(`v3BuildStadium`: 피치 밖 잔디·광고판·계단식 관중석·밤하늘). 처음 한 번만 만든다. 관중석은 낮게(약 10m) 둬서 시야를 안 가린다.
+- 워터마크는 **바닥에 그리지 않는다**(카메라를 돌리면 뒤집혀서). 화면은 `#v3MarkTL/BR`(투영한 피치 왼쪽 위·오른쪽 아래 모서리), 내보내기는 `v3DrawMarks()`. 3D 이미지를 drawImage한 뒤엔 꼭 `v3DrawMarks`를 같이 부를 것.
 - 선수는 단순 마네킹(`v3MakeToken`·`v3Shape`, 비율 `V3_LOOK.fig`). 번호는 머리 앞 빌보드.
 - 색·광택·조명·마네킹 비율은 `V3_LOOK`에 모여 있고 **전부 임시값**. 사용자가 thetacticsapp 정지 프레임을 주면 맞춘다(그 전에 임의로 확정하지 말 것).
 
 ## 세로 9:16 내보내기 (`js/export.js`의 `drawCardV`·`drawBoardOnlyV`)
 - 1080×1920, 피치를 세워 홈이 위쪽으로 공격. 2D는 캔버스를 −90° 돌려 `renderFrame()`을 그대로 쓰고, `T.rot`가 있으면 선수·공·텍스트를 `upright()`로 세운다. 점에 붙는 글자·도형을 새로 그릴 때는 `upright()`를 꼭 거칠 것(안 그러면 세로에서 누워 나옴).
-- 3D는 `v3Image(fr, flip, w, h, -90)`(카메라만 90° 회전).
+- 3D는 `v3Image(fr, flip, w, h, -90)`: 좌우 각도를 **-90°로 고정**(화면 각도에 더하지 않음 — 더하면 '골대 뒤' 상태에서 가로로 나오던 버그), 내려다보는 각도는 최소 70°.
+- 워터마크: 세로 화면 기준 피치 왼쪽 위·오른쪽 아래 모서리 바깥(2D·3D 공통).
+
+## 사진으로 명단 (`js/lineup-ai.js`)
+- 명단 탭 '사진으로 명단 (AI)'. 라인업 캡처 → Google Gemini(generateContent, JSON 응답) → 표에서 수정 → `importSquad()`(경기 CSV와 같은 경로)로 적용 또는 경기 CSV 양식 저장.
+- **키는 쓰는 사람 각자의 무료 Gemini 키**(localStorage `tactical-notebook.geminiKey`, 이 브라우저만). 앱 주인 키를 코드에 넣지 말 것(공개 사이트라 누구나 그 돈으로 쓰게 됨).
+- 모델 기본값 `gemini-3.5-flash-lite`(목록 `LAI_MODELS`, 직접 입력 가능). 모델 이름·무료 한도는 Google이 자주 바꿈 → 오류 메시지가 다른 모델을 권하게 해 둠.
+- 키 없이: 명령문 복사 → 다른 AI 채팅 → 답(JSON/CSV) 붙여넣기.
 
 ## 트래커 연동 (`js/tracker.js`, `tracker/`)
 - `board.json`은 상단 '불러오기'가 자동으로 구분한다(`isBoardJson`). 좌표축은 앱과 같고(x 길이, y 폭, 원점 왼쪽 위), 피치 크기가 다르면 nx·ny로 105×68에 맞춘다.

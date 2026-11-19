@@ -204,3 +204,30 @@ body.is3d .rail{opacity:.35;pointer-events:none}
 
 /* 내보내기 메뉴 구분 제목 */
 .menu .menu-sep{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted);padding:10px 12px 4px;border-top:1px solid var(--line);margin-top:4px;text-transform:uppercase}
+
+/* 3D 워터마크(화면 위 글자 — 카메라를 돌려도 안 뒤집힘) */
+#v3Marks{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+.v3mark{position:absolute;white-space:nowrap;font:700 12px var(--f-display);letter-spacing:.12em;color:rgba(255,255,255,.6)}
+.v3mark.tl{transform:translate(0,calc(-100% - 6px))}
+.v3mark.br{transform:translate(-100%,6px)}
+
+/* 사진으로 명단(AI) 창 */
+.lai-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr);gap:20px;align-items:start}
+.lai-grid .field{margin-bottom:12px}
+.lai-grid input:not([type=checkbox]),.lai-grid textarea{border:1px solid var(--line);background:var(--surface-2);border-radius:6px;padding:6px 8px;color:var(--ink);font:inherit}
+.lai-drop{border:1.5px dashed var(--line);border-radius:10px;padding:10px;cursor:pointer;min-height:110px}
+.lai-drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.lai-imgs{display:flex;gap:8px;flex-wrap:wrap;min-height:60px;align-items:center}
+.lai-imgs figure{margin:0;position:relative}
+.lai-imgs img{height:84px;border-radius:6px;display:block;border:1px solid var(--line)}
+.lai-imgs figure button{position:absolute;top:2px;right:2px;padding:0 5px}
+.lai-status.bad{color:var(--warn)}
+.lai-alt{margin-top:12px}.lai-alt summary{cursor:pointer;font-size:13px;color:var(--muted)}
+.lai-tablewrap{max-height:58vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.lai-table input{width:100%;min-width:0;border:1px solid transparent;background:transparent;border-radius:4px;padding:3px 4px;color:var(--ink);font:inherit;font-size:13px}
+.lai-table input:focus{border-color:var(--accent);background:var(--surface-2)}
+.lai-table td{padding:1px 3px}.lai-table input.n{width:3.2em}
+.lai-table tr.bad td{background:color-mix(in srgb,var(--warn) 12%,transparent)}
+@media (max-width:860px){.lai-grid{grid-template-columns:1fr}}
+.lai-grid label.check{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400}
+.lai-grid label.check input{width:auto;margin:0}

@@ -81,9 +81,11 @@ function importSquad(text){
   const names = [...new Set(out.map(p => p.team).filter(Boolean))];
   if (names.length >= 2) {                                             // 경기 CSV: 두 팀을 한 번에
     if (names.length > 2) return toast(t('csv_teams3', { n:names.length }));
+    // 두 팀이 '홈'·'원정'(home/away, h/a)으로 적혀 있을 때만 그 뜻으로 읽는다. 하나라도 팀 이름이면 먼저 나온 팀 = 홈
+    // (2026-11-20 버그: 팀 이름이 'A'·'B'면 'A'를 away 약자로 읽어 홈·원정이 뒤바뀜)
     let home = names.find(n => CSV_HOME.includes(csvKey(n))), away = names.find(n => CSV_AWAY.includes(csvKey(n)));
-    const named = !(home || away);                                     // 홈/원정이라고 안 쓰고 팀 이름을 썼으면: 먼저 나온 팀 = 홈
-    if (named) [home, away] = names; else { home = home || names.find(n => n !== away); away = away || names.find(n => n !== home); }
+    const named = !(home && away && home !== away);
+    if (named) [home, away] = names;
     snapshot();
     doc.teams.home.roster = csvFinish(out.filter(p => p.team === home)); doc.teams.away.roster = csvFinish(out.filter(p => p.team === away));
     if (named) { doc.teams.home.name = home.slice(0, 30); doc.teams.away.name = away.slice(0, 30); }

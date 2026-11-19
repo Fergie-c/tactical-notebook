@@ -33,7 +33,7 @@ function drawCard(c, fr, memoIdx, textless){   // textless: board + legend only 
   const dest = { x:56, y:132, w:1250, h:850 };
   const TT = makeT(doc.view, dest, isFlipped(sc));
   c.save(); roundRect(c, TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h, 14); c.clip();
-  if (v3.on) c.drawImage(v3Image(fr, isFlipped(sc), TT.clip.w, TT.clip.h), TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h);   // 3D 보기 중이면 카드의 보드도 3D
+  if (v3.on) { c.drawImage(v3Image(fr, isFlipped(sc), TT.clip.w, TT.clip.h), TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h); v3DrawMarks(c, TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h); }   // 3D 보기 중이면 카드의 보드도 3D
   else renderFrame(c, TT, fr, { showNames:doc.showNames });
   c.restore();
   // legend
@@ -75,33 +75,41 @@ function exportJson(){ download(new Blob([JSON.stringify(doc, null, 1)], { type:
 /* board only: the pitch fills the whole 1920×1080 frame, no memo card (for reels / blog clips). 2D or 3D, whichever is on screen */
 function drawBoardOnly(c, fr){
   c.setTransform(1,0,0,1,0,0);
-  if (v3.on) { c.drawImage(v3Image(fr, !!fr.flip, CW, CH), 0, 0, CW, CH); return; }
+  if (v3.on) { c.drawImage(v3Image(fr, !!fr.flip, CW, CH), 0, 0, CW, CH); v3DrawMarks(c, 0, 0, CW, CH); return; }
   c.fillStyle = '#244c33'; c.fillRect(0, 0, CW, CH);
   renderFrame(c, makeT(doc.view, { x:0, y:0, w:CW, h:CH }, !!fr.flip), fr, { showNames:doc.showNames });
 }
 /* ---------- 세로(9:16) 내보내기 — 릴스·쇼츠용 (added 2026-11-20) ----------
    피치를 세워서 홈이 위쪽으로 공격하게 그린다(후반 장면은 2D처럼 반대로). 2D는 캔버스를 -90° 돌려서 같은 renderFrame()으로 그리고,
-   선수·번호·글자만 upright()로 다시 세운다. 3D는 카메라를 골대 뒤 방향으로 90° 돌려 찍는다(v3Image의 azOff). */
+   선수·번호·글자만 upright()로 다시 세운다. 3D는 카메라를 왼쪽 골대 뒤(-90°)로 고정해서 찍는다(v3Image의 azFix).
+   워터마크는 세로 화면 기준 피치의 왼쪽 위·오른쪽 아래 모서리 바깥에 세워서 쓴다. */
 const VW = 1080, VH = 1920;
 function drawPitchVertical(c, fr, box, flip){   // box 안에 세로 피치. 돌려 그린 뒤 화면 기준 피치 사각형을 돌려준다
   const T = makeT(doc.view, { x:0, y:0, w:box.h, h:box.w }, flip); T.rot = T.base.rot = -Math.PI / 2;
   const k = T.clip, rect = { x:box.x + k.y, y:box.y + box.h - k.x - k.w, w:k.h, h:k.w };
   c.save(); c.translate(box.x, box.y + box.h); c.rotate(-Math.PI / 2);
   renderFrame(c, T, fr, { showNames:doc.showNames, noMark:true });
-  c.restore(); return rect;
+  c.restore();
+  const B = T.base, scr = (px, py) => [box.x + B.Y(py), box.y + box.h - B.X(px)];   // 돌린 좌표 → 화면 좌표
+  const pts = [scr(0, 0), scr(105, 0), scr(0, 68), scr(105, 68)], xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  rect.pitch = { x0:Math.min(...xs), y0:Math.min(...ys), x1:Math.max(...xs), y1:Math.max(...ys) };   // 피치 라인 사각형(화면 기준)
+  return rect;
 }
 function verticalBoard(c, fr, box, flip, round){   // 2D 또는 3D(지금 화면 그대로)로 box를 채움
   c.save(); if (round) { roundRect(c, box.x, box.y, box.w, box.h, round); c.clip(); }
-  if (v3.on) c.drawImage(v3Image(fr, flip, box.w, box.h, -90), box.x, box.y, box.w, box.h);
-  else { c.fillStyle = '#244c33'; c.fillRect(box.x, box.y, box.w, box.h); drawPitchVertical(c, fr, box, flip); }
+  if (v3.on) { c.drawImage(v3Image(fr, flip, box.w, box.h, -90), box.x, box.y, box.w, box.h); v3DrawMarks(c, box.x, box.y, box.w, box.h); }
+  else {
+    c.fillStyle = '#244c33'; c.fillRect(box.x, box.y, box.w, box.h);
+    const P = drawPitchVertical(c, fr, box, flip).pitch, fs = Math.max(14, Math.round(box.w * .02)), gap = fs * .5;
+    c.save(); c.font = `700 ${fs}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(fs * .1).toFixed(1)}px`; c.fillStyle = 'rgba(255,255,255,.55)';
+    c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, P.x0, P.y0 - gap); c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, P.x1, P.y1 + gap); c.restore();
+  }
   c.restore();
 }
-function vMark(c, x, y, align, alpha){ c.save(); c.font = `700 22px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = '2px'; c.fillStyle = `rgba(255,255,255,${alpha})`; c.textAlign = align; c.textBaseline = 'alphabetic'; c.fillText(BRAND, x, y); c.restore(); }
 /* 보드만: 화면 전체가 피치 */
 function drawBoardOnlyV(c, fr){
   c.setTransform(1,0,0,1,0,0); c.fillStyle = '#1b3a28'; c.fillRect(0, 0, VW, VH);
-  verticalBoard(c, fr, { x:0, y:70, w:VW, h:VH - 170 }, !!fr.flip, 0);
-  vMark(c, VW / 2, VH - 48, 'center', .5);
+  verticalBoard(c, fr, { x:0, y:0, w:VW, h:VH }, !!fr.flip, 0);
 }
 /* 메모 포함: 위 = 분석 제목·장면 제목·전후반/시간, 가운데 = 보드, 아래 = 관찰·핵심 포인트.
    위아래 약 140px는 릴스·쇼츠 화면의 버튼·자막에 가려지기 쉬워서 비워 둔다 */
@@ -132,7 +140,6 @@ function drawCardV(c, fr, memoIdx){
     c.fillStyle = accent; c.font = `600 22px ${B}`; c.fillText(t('card_key').toUpperCase(), X0 + 28, y + 30);
     c.fillStyle = ink; c.font = `600 34px ${B}`; let yy = y + 78; for (const ln of key) { c.fillText(ln, X0 + 28, yy); yy += 48; }
   }
-  vMark(c, X0, VH - 70, 'left', .45);
   if (doc.meta.analyst) { c.fillStyle = muted; c.font = `400 22px ${M}`; c.textAlign = 'right'; c.fillText(`${t('card_analyst')} · ${doc.meta.analyst}`, VW - X0, VH - 70); c.textAlign = 'left'; }
 }
 async function exportPngV(boardOnly){

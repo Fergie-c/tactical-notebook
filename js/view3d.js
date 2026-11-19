@@ -12,7 +12,9 @@
 
 /* 룩(색·광택·조명) — 전부 임시값. thetacticsapp 정지 프레임을 받으면 여기 숫자만 맞추면 된다. */
 const V3_LOOK = {
-  bg: 0x0d1512,            // 임시: 배경(피치 바깥)
+  sky: ['#0b1424', '#1b2c45'],  // 임시: 밤하늘 그라데이션(위 → 아래)
+  stand: { gap:9, tiers:7, depth:2.6, rise:1.5 },   // 임시: 관중석 — 터치라인·골라인에서 떨어진 거리(m), 단 수, 단 깊이·높이
+  apron: '#2a5c3b',        // 임시: 피치 바깥 잔디
   ambient: 0.66,           // 임시: 전체 밝기
   sun: 0.95,               // 임시: 그림자를 만드는 주 조명 세기
   sunPos: [-30, 95, 55],   // 임시: 조명 위치(세계 좌표)
@@ -35,7 +37,7 @@ function v3Init(){
   if (typeof THREE === 'undefined') return false;
   let renderer; try { renderer = new THREE.WebGLRenderer({ canvas:$('board3d'), antialias:true, alpha:false, preserveDrawingBuffer:false }); } catch (e) { console.warn('WebGL을 쓸 수 없음', e); return false; }
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  const scene3 = new THREE.Scene(); scene3.background = new THREE.Color(V3_LOOK.bg);
+  const scene3 = new THREE.Scene(); scene3.background = v3SkyTex();
   const camera = new THREE.PerspectiveCamera(V3_LOOK.fov, 16 / 9, 1, 2000);
   scene3.add(new THREE.AmbientLight(0xffffff, V3_LOOK.ambient));
   const sun = new THREE.DirectionalLight(0xffffff, V3_LOOK.sun); sun.position.set(...V3_LOOK.sunPos); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
@@ -47,10 +49,81 @@ function v3Init(){
   ground.rotation.x = -Math.PI / 2; scene3.add(ground);
   const shadowPlane = new THREE.Mesh(new THREE.PlaneGeometry(VIEWS.full.w, VIEWS.full.h), new THREE.ShadowMaterial({ opacity:V3_LOOK.shadow }));   // 그림자만 받는 투명한 면
   shadowPlane.rotation.x = -Math.PI / 2; shadowPlane.position.y = 0.02; shadowPlane.receiveShadow = true; scene3.add(shadowPlane);
+  v3BuildStadium(scene3);
   Object.assign(v3, { ok:true, renderer, scene3, camera, gcv, gctx:gcv.getContext('2d'), gtex, tokens:new Map(), texts:new Map(), ball:null, texCache:new Map(), w:0, h:0,
     geoCyl:new THREE.CylinderGeometry(1, 1, 1, 40), geoTorso:new THREE.CylinderGeometry(V3_LOOK.fig.torsoTop / V3_LOOK.fig.torsoBot, 1, 1, 40, 1, true),
     geoSph:new THREE.SphereGeometry(1, 32, 22), geoHalf:new THREE.SphereGeometry(1, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), geoBall:new THREE.SphereGeometry(0.95, 28, 20) });
   return true;
+}
+
+/* ---------- 스타디움(배경) — 2026-11-20 ----------
+   피치 밖 잔디 + 광고판(JS TACTICAL BOARD) + 계단식 관중석(관중 점무늬) + 밤하늘. 전부 고정 장식이라 처음 한 번만 만든다.
+   관중석은 카메라 시야를 가리지 않게 낮게(맨 위 약 10m) 두고, 그림자는 만들지 않는다. */
+function v3SkyTex(){
+  const cv = v3Canvas(4, 256), c = cv.getContext('2d'), g = c.createLinearGradient(0, 0, 0, 256);
+  g.addColorStop(0, V3_LOOK.sky[0]); g.addColorStop(1, V3_LOOK.sky[1]); c.fillStyle = g; c.fillRect(0, 0, 4, 256); return v3Tex(cv);
+}
+function v3CrowdTex(){   // 관중: 어두운 좌석 위에 여러 색 점(옷 색). 같은 결과가 나오게 고정 난수
+  const cv = v3Canvas(512, 64), c = cv.getContext('2d'); let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  c.fillStyle = '#1a2129'; c.fillRect(0, 0, 512, 64);   // 점을 크게·흐리게 해서 멀리서 지글거리지 않게(밉맵에서 뭉개지도록)
+  const cols = ['#8e3036', '#b9bcc0', '#2c4d84', '#a88a2c', '#3a3f48', '#5d6672', '#9a5a2a', '#262a30'];
+  for (let i = 0; i < 520; i++) { const x = rnd() * 512, y = rnd() * 64; c.fillStyle = cols[(rnd() * cols.length) | 0]; c.globalAlpha = .45 + rnd() * .3; c.beginPath(); c.arc(x, y, 3.2 + rnd() * 2.2, 0, Math.PI * 2); c.fill(); }
+  c.globalAlpha = 1; const tx = v3Tex(cv); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx;
+}
+function v3BoardTex(){   // 광고판 LED: 어두운 바탕 + 초록 줄 + 브랜드 글자 반복
+  const cv = v3Canvas(1024, 64), c = cv.getContext('2d'); c.fillStyle = '#0c1410'; c.fillRect(0, 0, 1024, 64);
+  c.fillStyle = '#1f8f55'; c.fillRect(0, 0, 1024, 5); c.fillRect(0, 59, 1024, 5);
+  c.font = `700 30px ${getCss('--f-display')}`; c.textBaseline = 'middle'; c.fillStyle = '#e9f5ee'; if ('letterSpacing' in c) c.letterSpacing = '4px';
+  for (let x = 30; x < 1024; x += 512) c.fillText(BRAND, x, 33);
+  const tx = v3Tex(cv); tx.wrapS = THREE.RepeatWrapping; return tx;
+}
+function v3BuildStadium(scene3){
+  const S = V3_LOOK.stand, HL = 52.5, HW = 34;
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(2 * (HL + S.gap + 2), 2 * (HW + S.gap + 2)), new THREE.MeshBasicMaterial({ color:V3_LOOK.apron }));
+  apron.rotation.x = -Math.PI / 2; apron.position.y = -0.03; scene3.add(apron);
+  // 광고판: 터치라인·골라인에서 6m 밖, 높이 0.9m, 글자는 피치 쪽을 봄
+  const btex = v3BoardTex(), bmat = len => { const t = btex.clone(); t.needsUpdate = true; t.repeat.set(len / 26, 1); return new THREE.MeshBasicMaterial({ map:t }); };
+  const back = new THREE.MeshStandardMaterial({ color:0x10161b, roughness:.9 });
+  const board = (len, x, z, rotY) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(len, .9, .25), [back, back, back, back, bmat(len), back]);   // +z 면(4번)이 앞
+    m.position.set(x, .45, z); m.rotation.y = rotY; scene3.add(m);
+  };
+  const bz = HW + 6, bx = HL + 6;
+  board(2 * bx, 0, -bz, 0); board(2 * bx, 0, bz, Math.PI); board(2 * bz, -bx, 0, Math.PI / 2); board(2 * bz, bx, 0, -Math.PI / 2);
+  // 관중석: 단마다 상자 하나. 앞면(피치 쪽)과 윗면에 관중 무늬, 나머지는 콘크리트
+  const crowd = v3CrowdTex(), concrete = new THREE.MeshStandardMaterial({ color:0x2a3038, roughness:1 }), seats = new THREE.MeshStandardMaterial({ color:0x232a33, roughness:1 });
+  const crowdMat = (len, rep) => { const t = crowd.clone(); t.needsUpdate = true; t.repeat.set(len / 14, rep); return new THREE.MeshStandardMaterial({ map:t, roughness:1 }); };
+  const stand = (len, dist, rotY) => {   // 피치 중심에서 dist만큼 떨어진 곳부터 바깥으로 올라감. 기본은 -z쪽(위 터치라인 밖)
+    const g = new THREE.Group();
+    for (let i = 0; i < S.tiers; i++) {
+      const h = S.rise * (i + 1), d = S.depth, L = len + 2 * (i + 1) * d;   // 바깥 단일수록 길게 → 모서리가 이어짐
+      const m = new THREE.Mesh(new THREE.BoxGeometry(L, h, d), [concrete, concrete, seats, concrete, crowdMat(L, .6), concrete]);   // 윗면 = 좌석, 앞면 = 관중
+      m.position.set(0, h / 2, -(dist + i * d + d / 2)); g.add(m);
+    }
+    g.rotation.y = rotY; scene3.add(g);
+  };
+  const sz = HW + S.gap, sx = HL + S.gap;
+  stand(2 * sx, sz, 0); stand(2 * sx, sz, Math.PI); stand(2 * sz, sx, Math.PI / 2); stand(2 * sz, sx, -Math.PI / 2);
+}
+
+/* ---------- 워터마크: 화면 기준으로 피치의 왼쪽 위·오른쪽 아래 모서리 바깥에 '세워서' 쓴다(카메라를 돌려도 글자가 안 뒤집힘) ----------
+   v3PlaceCamera가 피치 네 모서리를 화면에 투영해 v3.marks(0~1 비율)에 저장 → 화면은 #v3MarkTL/BR 위치만 옮기고, 내보내기는 v3DrawMarks로 그린다 */
+function v3MarkAnchors(){
+  const pts = [[0, 0], [105, 0], [0, 68], [105, 68]].map(([x, y]) => { const q = new THREE.Vector3(x - 52.5, 0, y - 34).project(v3.camera); return [(q.x + 1) / 2, (1 - q.y) / 2]; });
+  const byY = pts.slice().sort((a, b) => a[1] - b[1]), top = byY.slice(0, 2).sort((a, b) => a[0] - b[0]), bot = byY.slice(2).sort((a, b) => b[0] - a[0]);
+  v3.marks = { tl:top[0], br:bot[0] };
+}
+function v3DrawMarks(c, x, y, w, h){
+  if (!v3.marks) return; const fs = Math.max(12, Math.round(Math.min(w, h) * .02)), gap = fs * .55;
+  c.save(); c.font = `700 ${fs}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(fs * .1).toFixed(1)}px`; c.fillStyle = 'rgba(255,255,255,.6)';
+  c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, x + v3.marks.tl[0] * w, y + v3.marks.tl[1] * h - gap);
+  c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, x + v3.marks.br[0] * w, y + v3.marks.br[1] * h + gap);
+  c.restore();
+}
+function v3PlaceMarksOnScreen(){
+  const tl = $('v3MarkTL'), br = $('v3MarkBR'); if (!tl || !v3.marks) return;
+  tl.style.left = (v3.marks.tl[0] * 100) + '%'; tl.style.top = (v3.marks.tl[1] * 100) + '%';
+  br.style.left = (v3.marks.br[0] * 100) + '%'; br.style.top = (v3.marks.br[1] * 100) + '%';
 }
 
 /* ---------- 텍스처 ---------- */
@@ -89,9 +162,7 @@ function v3PaintGround(fr, flip){
   const under = sh => isArea(sh) || sh.type === 'poly';
   for (const { sh, alpha } of fr.shapes) if (alpha > .01 && under(sh)) drawShape(c, sh, TT, alpha, false, false, pos);
   for (const { sh, alpha } of fr.shapes) if (alpha > .01 && !under(sh) && sh.type !== 'text') drawShape(c, sh, TT, alpha, false, false, pos);
-  const B = TT.base, bf = 1.5 * B.s, gap = .35 * B.s;   // 워터마크(2D와 같은 자리)
-  c.save(); c.font = `700 ${bf}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(bf * .08).toFixed(1)}px`; c.fillStyle = 'rgba(255,255,255,.55)';
-  c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, B.X(0), B.Y(0) - gap); c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, B.X(105), B.Y(68) + gap); c.restore();
+  // 워터마크는 바닥에 그리지 않는다(카메라를 돌리면 글자가 뒤집혀서) → v3DrawMarks / 화면 위 글자
   v3.gtex.needsUpdate = true;
 }
 
@@ -166,13 +237,14 @@ function v3SyncPieces(fr, flip){
 /* 보이는 범위(전체/왼쪽 절반/오른쪽 절반)가 화면에 꽉 차도록 거리를 자동으로 맞추고, 사용자의 확대(zoom)를 곱한다 */
 function v3PlaceCamera(aspect){
   const cam = v3.camera, cfg = v3Cam(), v = VIEWS[doc.view];
-  const tx = v.x0 + v.w / 2 - 52.5, tz = v.y0 + v.h / 2 - 34, az = (cfg.az + (v3.azOff || 0)) * Math.PI / 180, el = cfg.el * Math.PI / 180;
+  const tx = v.x0 + v.w / 2 - 52.5, tz = v.y0 + v.h / 2 - 34, az = (v3.azFix != null ? v3.azFix : cfg.az) * Math.PI / 180, el = Math.max(cfg.el, v3.elMin || 0) * Math.PI / 180;
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
-  cam.aspect = aspect; cam.fov = V3_LOOK.fov; cam.up.set(0, 1, 0); if (cfg.el > 89.4) cam.up.set(-Math.sin(az), 0, -Math.cos(az));   // 완전 탑다운에서 위쪽 방향 고정
+  cam.aspect = aspect; cam.fov = V3_LOOK.fov; cam.up.set(0, 1, 0); if (Math.max(cfg.el, v3.elMin || 0) > 89.4) cam.up.set(-Math.sin(az), 0, -Math.cos(az));   // 완전 탑다운에서 위쪽 방향 고정
   const target = new THREE.Vector3(tx, 0, tz), corners = [[v.x0, v.y0], [v.x0 + v.w, v.y0], [v.x0, v.y0 + v.h], [v.x0 + v.w, v.y0 + v.h]].map(([x, y]) => new THREE.Vector3(x - 52.5, 0, y - 34));
   const fits = d => { cam.position.copy(target).addScaledVector(dir, d); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); return corners.every(c => { const q = c.clone().project(cam); return Math.abs(q.x) <= .985 && Math.abs(q.y) <= .985; }); };
   let lo = 20, hi = 900; for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
   cam.position.copy(target).addScaledVector(dir, hi / cfg.zoom); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+  v3MarkAnchors();
   // 번호·이름표를 카메라에 맞춰 놓기: 번호는 원판 윗면 중심에서 카메라 쪽으로 살짝 당겨서(같은 시선 위) 원판에 파묻히지 않게, 이름표는 화면 기준 아래쪽
   const down = new THREE.Vector3(dir.x, 0, dir.z); if (down.lengthSq() < 1e-6) down.set(-cam.up.x, 0, -cam.up.z); down.normalize();
   const wp = new THREE.Vector3();
@@ -195,16 +267,19 @@ function v3Render(fr, flip){
   if (!v3.on || !v3.ok) return;
   const w = Math.max(1, Math.round(W)), h = Math.max(1, Math.round(H));
   if (!fr && !v3.last) return;
-  v3RenderAt(fr, flip, w, h, Math.min(window.devicePixelRatio || 1, 2));
+  v3RenderAt(fr, flip, w, h, Math.min(window.devicePixelRatio || 1, 2)); v3PlaceMarksOnScreen();
 }
 /* 내보내기용: 정해진 크기로 한 장 그려서 그 캔버스를 돌려준다(바로 drawImage 할 것). 화면 크기는 다음 draw() 때 되돌아온다 */
-function v3Image(fr, flip, w, h, azOff){   // azOff: 세로 내보내기는 -90(골대 뒤에서 봐서 홈이 위로 공격)
-  v3.azOff = azOff || 0; try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azOff = 0; } return v3.renderer.domElement; }
+/* azFix: 좌우 각도를 이 값(도)으로 고정. 세로 내보내기는 -90 = 왼쪽 골대 뒤에서 봄 → 홈이 위로 공격하는 세로 피치.
+   화면에서 돌려 둔 각도(골대 뒤 버튼 등)와 상관없이 항상 세로로 나오게 한다(2026-11-20 버그: 각도를 더해서 가로로 나왔음). 내려다보는 각도·확대는 화면 설정을 따름 */
+function v3Image(fr, flip, w, h, azFix){   // 세로(azFix 있음)는 너무 비스듬하면 피치가 납작하고 작아져서 최소 70°로 내려다봄
+  v3.azFix = azFix == null ? null : azFix; v3.elMin = azFix == null ? 0 : 70;
+  try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azFix = null; v3.elMin = 0; } return v3.renderer.domElement; }
 
 /* ---------- 켜기/끄기·조작 ---------- */
 function setView3d(on){
   if (on && !v3Init()) { toast(t('v3_unsupported')); on = false; }
-  v3.on = !!on; document.body.classList.toggle('is3d', v3.on); $('board3d').hidden = !v3.on; $('v3Bar').hidden = !v3.on;
+  v3.on = !!on; document.body.classList.toggle('is3d', v3.on); $('board3d').hidden = !v3.on; $('v3Bar').hidden = !v3.on; $('v3Marks').hidden = !v3.on;
   document.querySelectorAll('#dimSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.dim === '3d') === v3.on)));
   if (v3.on) { sel.clear(); selShapes.clear(); draft = null; box = null; if (chain) { chain = null; setTool('select'); } closeSummon(); toast(t('v3_hint')); }
   draw();

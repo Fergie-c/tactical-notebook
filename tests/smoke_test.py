@@ -104,7 +104,15 @@ async def main() -> int:
         assert d.suggested_filename.endswith("_vertical.mp4"), "세로 영상 파일 이름이 다름: " + d.suggested_filename
         await d.save_as(str(OUT / d.suggested_filename))
 
-        # 9) 3D 보기 (WebGL이 없는 환경이면 건너뜀)
+        # 9) 사진으로 명단(AI) 창 — 네트워크 없이 '텍스트 붙여넣기' 경로만 확인
+        await page.click("#tabRoster"); await page.click("#btnLineupAI")
+        await page.click(".lai-alt summary")
+        await page.fill("#laiText", "팀,등번호,포지션,이름\nA,1,GK,가\nA,5,DF,나\nB,9,FW,다\n")
+        await page.click("#laiPasteBtn"); await page.click("#laiApply"); await page.wait_for_timeout(300)
+        saved = await page.evaluate("JSON.parse(localStorage.getItem('tactical-notebook.v1'))")
+        assert saved["teams"]["home"]["name"] == "A" and len(saved["teams"]["home"]["roster"]) == 2, "사진 명단 창 적용이 안 됨"
+
+        # 10) 3D 보기 (WebGL이 없는 환경이면 건너뜀)
         await page.keyboard.press("Digit3")
         await page.wait_for_timeout(600)
         if await page.evaluate("v3.on && v3.ok"):
