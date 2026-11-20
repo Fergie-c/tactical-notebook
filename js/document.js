@@ -70,7 +70,8 @@ function normalize(d){
   for (const sc of d.scenes) for (const sh of sc.shapes) if (![1, 2, 3].includes(sh.w)) sh.w = 2;
   for (const sc of d.scenes) if (sc.half !== 2) sc.half = 1;   // line thickness (added 2026-10-16; older files have none)
   { const c = d.cam3d || {}, f = (v, a, b, def) => Number.isFinite(+v) ? Math.max(a, Math.min(b, +v)) : def;   // 3D 보기 카메라(added 2026-11-16): 좌우 각도, 내려다보는 각도, 확대
-    d.cam3d = { az:f(c.az, -180, 180, 0), el:f(c.el, 20, 90, 60), zoom:f(c.zoom, .5, 3, 1) }; }
+    const az = f(c.az, -180, 180, 0);   // 2026-11-20부터 가로(0)/세로(-90) 두 방향만 — 예전 저장값은 가까운 쪽으로
+    d.cam3d = { az: az <= -45 && az >= -135 ? -90 : 0, el:f(c.el, 20, 90, 60), zoom:f(c.zoom, .5, 3, 1) }; }
   d.cur = Math.min(Math.max(0, d.cur|0), d.scenes.length - 1);
   return d;
 }

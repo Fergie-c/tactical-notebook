@@ -33,7 +33,7 @@ function drawCard(c, fr, memoIdx, textless){   // textless: board + legend only 
   const dest = { x:56, y:132, w:1250, h:850 };
   const TT = makeT(doc.view, dest, isFlipped(sc));
   c.save(); roundRect(c, TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h, 14); c.clip();
-  if (v3.on) { c.drawImage(v3Image(fr, isFlipped(sc), TT.clip.w, TT.clip.h), TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h); v3DrawMarks(c, TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h); }   // 3D 보기 중이면 카드의 보드도 3D
+  if (v3.on) { c.drawImage(v3Image(fr, isFlipped(sc), TT.clip.w, TT.clip.h, { az:0 }), TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h); v3DrawMarks(c, TT.clip.x, TT.clip.y, TT.clip.w, TT.clip.h); }   // 3D 보기 중이면 카드의 보드도 3D
   else renderFrame(c, TT, fr, { showNames:doc.showNames });
   c.restore();
   // legend
@@ -75,7 +75,7 @@ function exportJson(){ download(new Blob([JSON.stringify(doc, null, 1)], { type:
 /* board only: the pitch fills the whole 1920×1080 frame, no memo card (for reels / blog clips). 2D or 3D, whichever is on screen */
 function drawBoardOnly(c, fr){
   c.setTransform(1,0,0,1,0,0);
-  if (v3.on) { c.drawImage(v3Image(fr, !!fr.flip, CW, CH), 0, 0, CW, CH); v3DrawMarks(c, 0, 0, CW, CH); return; }
+  if (v3.on) { c.drawImage(v3Image(fr, !!fr.flip, CW, CH, { az:0 }), 0, 0, CW, CH); v3DrawMarks(c, 0, 0, CW, CH); return; }
   c.fillStyle = '#244c33'; c.fillRect(0, 0, CW, CH);
   renderFrame(c, makeT(doc.view, { x:0, y:0, w:CW, h:CH }, !!fr.flip), fr, { showNames:doc.showNames });
 }
@@ -97,19 +97,31 @@ function drawPitchVertical(c, fr, box, flip){   // box 안에 세로 피치. 돌
 }
 function verticalBoard(c, fr, box, flip, round, pad){   // 2D 또는 3D(지금 화면 그대로)로 box를 채움
   c.save(); if (round) { roundRect(c, box.x, box.y, box.w, box.h, round); c.clip(); }
-  if (v3.on) { c.drawImage(v3Image(fr, flip, box.w, box.h, -90, pad), box.x, box.y, box.w, box.h); v3DrawMarks(c, box.x, box.y, box.w, box.h); }
+  if (v3.on) { c.drawImage(v3Image(fr, flip, box.w, box.h, { az:-90, elMin:72, pad }), box.x, box.y, box.w, box.h); v3DrawMarks(c, box.x, box.y, box.w, box.h); }
   else {
-    c.fillStyle = '#244c33'; c.fillRect(box.x, box.y, box.w, box.h);
     const P = drawPitchVertical(c, fr, box, flip).pitch, fs = Math.max(14, Math.round(box.w * .02)), gap = fs * .5;
     c.save(); c.font = `700 ${fs}px ${getCss('--f-display')}`; if ('letterSpacing' in c) c.letterSpacing = `${(fs * .1).toFixed(1)}px`; c.fillStyle = 'rgba(255,255,255,.55)';
     c.textAlign = 'left'; c.textBaseline = 'bottom'; c.fillText(BRAND, P.x0, P.y0 - gap); c.textAlign = 'right'; c.textBaseline = 'top'; c.fillText(BRAND, P.x1, P.y1 + gap); c.restore();
   }
   c.restore();
 }
-/* 보드만: 화면 전체가 피치 */
+/* 보드만(쇼츠·릴스용): 구장 전체를 가운데에 두고 위(제목 2줄)·아래(자막) 자리를 비워 둔다.
+   제목·자막은 사용자가 영상 편집 프로그램에서 넣는다(2026-11-20 사용자 결정). V_SAFE = 위·아래 빈 띠 높이(px) */
+const V_SAFE = { top:300, bottom:300 };
 function drawBoardOnlyV(c, fr){
-  c.setTransform(1,0,0,1,0,0); c.fillStyle = '#1b3a28'; c.fillRect(0, 0, VW, VH);
-  verticalBoard(c, fr, { x:0, y:0, w:VW, h:VH }, !!fr.flip, 0, .78);   // 3D: 피치가 화면의 약 78%만 차고 둘레에 관중석이 보임
+  c.setTransform(1,0,0,1,0,0);
+  if (v3.on) {   // 3D: 화면 전체에 스타디움, 피치(여백 포함)는 위아래 빈 띠 사이에 들어오게
+    const ph = (VH - V_SAFE.top - V_SAFE.bottom) / VH, cy = (V_SAFE.top - V_SAFE.bottom) / 2;   // cy: 띠가 같으면 0
+    verticalBoard(c, fr, { x:0, y:cy, w:VW, h:VH }, !!fr.flip, 0, [.92, ph]);
+    // 위·아래 띠를 살짝 어둡게: 나중에 영상 편집에서 얹는 흰 제목·자막이 관중석 위에서도 읽히게
+    for (const [y0, y1] of [[0, V_SAFE.top], [VH, VH - V_SAFE.bottom]]) {
+      const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, 'rgba(5,8,7,.78)'); g.addColorStop(.7, 'rgba(5,8,7,.45)'); g.addColorStop(1, 'rgba(5,8,7,0)');
+      c.fillStyle = g; c.fillRect(0, Math.min(y0, y1), VW, Math.abs(y1 - y0));
+    }
+  } else {
+    c.fillStyle = '#0d1310'; c.fillRect(0, 0, VW, VH);
+    verticalBoard(c, fr, { x:30, y:V_SAFE.top, w:VW - 60, h:VH - V_SAFE.top - V_SAFE.bottom }, !!fr.flip, 0);
+  }
 }
 /* 메모 포함: 위 = 분석 제목·장면 제목·전후반/시간, 가운데 = 보드, 아래 = 관찰·핵심 포인트.
    위아래 약 140px는 릴스·쇼츠 화면의 버튼·자막에 가려지기 쉬워서 비워 둔다 */
@@ -132,7 +144,7 @@ function drawCardV(c, fr, memoIdx){
   const bottomH = (obs.length ? 44 + obs.length * 48 + 20 : 0) + (key.length ? 76 + key.length * 48 + 10 : 0);
   const bottom = VH - 150 - bottomH;
   const bh = Math.max(600, bottom - top - 30), v = VIEWS[doc.view], bw = v3.on ? PW + 48 : Math.min(PW + 48, Math.round(bh * v.h / v.w));   // 2D는 피치 비율에 맞춰 폭을 줄임(양옆 띠 없애기)
-  verticalBoard(c, fr, { x:(VW - bw) / 2, y:top, w:bw, h:bh }, isFlipped(sc), 22, .9);
+  verticalBoard(c, fr, { x:(VW - bw) / 2, y:top, w:bw, h:bh }, isFlipped(sc), 22, [.9, .9]);
   y = Math.max(bottom, top + 630);
   if (obs.length) { c.fillStyle = muted; c.font = `600 22px ${B}`; c.fillText(t('card_obs').toUpperCase(), X0, y); y += 44; c.fillStyle = ink; c.font = `400 34px ${B}`; for (const ln of obs) { c.fillText(ln, X0, y); y += 48; } y += 20; }
   if (key.length) {

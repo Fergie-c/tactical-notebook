@@ -210,3 +210,6 @@ body.is3d .rail{opacity:.35;pointer-events:none}
 .v3mark{position:absolute;white-space:nowrap;font:700 12px var(--f-display);letter-spacing:.12em;color:rgba(255,255,255,.6)}
 .v3mark.tl{transform:translate(0,calc(-100% - 6px))}
 .v3mark.br{transform:translate(-100%,6px)}
+.v3bar .seg{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25)}
+.v3bar .seg button{color:#fff;background:transparent}
+.v3bar .seg button[aria-pressed="true"]{background:#fff;color:#0d1310}

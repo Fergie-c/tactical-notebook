@@ -244,7 +244,7 @@ function v3PlaceCamera(aspect){
   const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
   cam.aspect = aspect; cam.fov = V3_LOOK.fov; cam.up.set(0, 1, 0); if (Math.max(cfg.el, v3.elMin || 0) > 89.4) cam.up.set(-Math.sin(az), 0, -Math.cos(az));   // 완전 탑다운에서 위쪽 방향 고정
   const target = new THREE.Vector3(tx, 0, tz), corners = [[v.x0, v.y0], [v.x0 + v.w, v.y0], [v.x0, v.y0 + v.h], [v.x0 + v.w, v.y0 + v.h]].map(([x, y]) => new THREE.Vector3(x - 52.5, 0, y - 34));
-  const fits = d => { cam.position.copy(target).addScaledVector(dir, d); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); const lim = v3.fitPad || .985; return corners.every(c => { const q = c.clone().project(cam); return Math.abs(q.x) <= lim && Math.abs(q.y) <= lim; }); };
+  const fits = d => { cam.position.copy(target).addScaledVector(dir, d); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld(); const lx = v3.fitPad ? v3.fitPad[0] : .985, ly = v3.fitPad ? v3.fitPad[1] : .985; return corners.every(c => { const q = c.clone().project(cam); return Math.abs(q.x) <= lx && Math.abs(q.y) <= ly; }); };
   let lo = 20, hi = 900; for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
   cam.position.copy(target).addScaledVector(dir, hi / cfg.zoom); cam.lookAt(target); cam.updateProjectionMatrix(); cam.updateMatrixWorld();
   v3MarkAnchors();
@@ -275,34 +275,38 @@ function v3Render(fr, flip){
 /* 내보내기용: 정해진 크기로 한 장 그려서 그 캔버스를 돌려준다(바로 drawImage 할 것). 화면 크기는 다음 draw() 때 되돌아온다 */
 /* azFix: 좌우 각도를 이 값(도)으로 고정. 세로 내보내기는 -90 = 왼쪽 골대 뒤에서 봄 → 홈이 위로 공격하는 세로 피치.
    화면에서 돌려 둔 각도(골대 뒤 버튼 등)와 상관없이 항상 세로로 나오게 한다(2026-11-20 버그: 각도를 더해서 가로로 나왔음). 내려다보는 각도·확대는 화면 설정을 따름 */
-/* fitPad: 피치(여백 포함)가 화면의 몇 %까지 차게 할지(1 = 끝까지). 세로는 레퍼런스처럼 관중석까지 보이게 여유를 둔다(2026-11-20 사용자 요청: 구장이 잘림) */
-function v3Image(fr, flip, w, h, azFix, fitPad){   // 세로(azFix 있음)는 너무 비스듬하면 피치가 납작하고 작아져서 최소 70°로 내려다봄
-  v3.azFix = azFix == null ? null : azFix; v3.elMin = azFix == null ? 0 : 70; v3.fitPad = fitPad || 0;
-  try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azFix = null; v3.elMin = 0; v3.fitPad = 0; } return v3.renderer.domElement; }
+/* 내보내기용 한 장. o.az: 방향 고정(0 = 가로 피치, -90 = 세로 피치 — 화면 방향과 상관없이 내보내기 종류가 정함)
+   o.elMin: 최소 내려다보는 각도 / o.pad: [가로, 세로] 피치(여백 포함)가 화면의 몇 %까지 차게 할지(없으면 거의 끝까지) */
+function v3Image(fr, flip, w, h, o){
+  o = o || {}; v3.azFix = o.az == null ? null : o.az; v3.elMin = o.elMin || 0; v3.fitPad = o.pad || null;
+  try { v3RenderAt(fr, flip, Math.round(w), Math.round(h), 1); } finally { v3.azFix = null; v3.elMin = 0; v3.fitPad = null; } return v3.renderer.domElement; }
 
 /* ---------- 켜기/끄기·조작 ---------- */
 function setView3d(on){
   if (on && !v3Init()) { toast(t('v3_unsupported')); on = false; }
   v3.on = !!on; document.body.classList.toggle('is3d', v3.on); $('board3d').hidden = !v3.on; $('v3Bar').hidden = !v3.on; $('v3Marks').hidden = !v3.on;
   document.querySelectorAll('#dimSeg button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.dim === '3d') === v3.on)));
-  if (v3.on) { sel.clear(); selShapes.clear(); draft = null; box = null; if (chain) { chain = null; setTool('select'); } closeSummon(); toast(t('v3_hint')); }
+  if (v3.on) { v3SyncOrient(); sel.clear(); selShapes.clear(); draft = null; box = null; if (chain) { chain = null; setTool('select'); } closeSummon(); toast(t('v3_hint')); }
   draw();
 }
-function v3Changed(){ v3Cam().az = ((v3Cam().az % 360) + 540) % 360 - 180; persist(); v3Render(); }
+function v3Changed(){ v3SyncOrient(); persist(); v3Render(); }
+function v3SyncOrient(){ document.querySelectorAll('#v3Orient button').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.cam === 'v') === (v3Cam().az === -90)))); }
 (() => {
   const el = $('board3d'); let d = null;
   el.addEventListener('pointerdown', e => { d = { x:e.clientX, y:e.clientY }; el.setPointerCapture(e.pointerId); });
-  el.addEventListener('pointermove', e => { if (!d) return; const c = v3Cam(); c.az -= (e.clientX - d.x) * .35; c.el = clamp(c.el + (e.clientY - d.y) * .3, 20, 90); d = { x:e.clientX, y:e.clientY }; v3Render(); });
+  el.addEventListener('pointermove', e => { if (!d) return; const c = v3Cam(); c.el = clamp(c.el + (e.clientY - d.y) * .3, 20, 90); /* 위아래로만 기울이기(좌우 360° 회전은 없앰 — 가로/세로 두 방향만, 2026-11-20 사용자 결정) */ d = { x:e.clientX, y:e.clientY }; v3Render(); });
   const up = () => { if (d) { d = null; v3Changed(); } }; el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   el.addEventListener('wheel', e => { e.preventDefault(); const c = v3Cam(); c.zoom = clamp(c.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), .5, 3); v3Changed(); }, { passive:false });
   el.addEventListener('dblclick', () => v3Preset('reset'));
 })();
 function v3Preset(name){
   const c = v3Cam();
-  if (name === 'reset') Object.assign(c, { az:0, el:V3_LOOK.el, zoom:1 });
-  else if (name === 'top') Object.assign(c, { az:0, el:90, zoom:1 });
-  else if (name === 'goal') Object.assign(c, { az:-90, el:42, zoom:1 });   // 왼쪽 골대 뒤에서 오른쪽(홈 공격 방향)을 바라봄
+  if (name === 'h') c.az = 0;                                   // 가로: 아래 터치라인 쪽에서 봄(2D와 같은 방향)
+  else if (name === 'v') c.az = -90;                            // 세로: 왼쪽 골대 뒤에서 봄 → 홈이 위로 공격(세로 내보내기와 같은 방향)
+  else if (name === 'reset') Object.assign(c, { el:V3_LOOK.el, zoom:1 });
+  else if (name === 'top') Object.assign(c, { el:90 });
   v3Changed();
 }
 document.querySelectorAll('#dimSeg button').forEach(b => b.onclick = () => setView3d(b.dataset.dim === '3d'));
 document.querySelectorAll('#v3Bar button[data-cam]').forEach(b => b.onclick = () => v3Preset(b.dataset.cam));
+v3SyncOrient();
